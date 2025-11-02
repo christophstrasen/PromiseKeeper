@@ -71,8 +71,11 @@ Scanner authors register their scanner via `WS.registerScanner(scannerId, initFn
 - Custom scanners (yours or third-party) **must** register themselves during mod boot before you can enable them.
 
 ```lua
--- instantiate an inbuilt scanner
-local ScanAllNear = WS.enableScanner("ws.square.nearby", getPlayer():getCurrentSquare())
+-- Instantiate a built-in scanner (periodic nearby sweep around the local player)
+local ScanAllNear = WS.enableScanner("ws.square.nearby", {
+    origin = getSpecificPlayer(0), -- or a specific IsoGridSquare
+    radius = 30,
+})
 
 -- Register your custom scanner and enable instances of it.
 WS.registerScanner("MyMod.lootSweeper", function(router) ... end)
@@ -90,12 +93,22 @@ WS.disableScanner(ScanSofaLoot)
 
 ### Listener Registration (Starlit-driven)
 
-WorldScanner emits through **Starlit Events**.
+WorldScanner emits through **Starlit Events** on two layers:
+
+- **Shared streams** (`Starlit.Events.WorldScanner.onSquare`, `onRoom`, …) receive every context of that type regardless of origin. Useful for orchestration, debugging, or cross-scanner correlation.
+- **Per-scanner streams** (`Starlit.Events.WorldScanner.onSquareFrom[scannerId]`, `onRoomFrom[scannerId]`, …) deliver only the contexts emitted by a specific scanner ID (built-in or custom).
 
 ```lua
--- Preferred: subscribe via Starlit
-Starlit.Events.WorldScanner.onNewSquareNearby.Add(function(squareCtx) ... end)
+-- Listen to every square context (very verbose, suggested only for debugging, allows to see all events move through the various scanners)
+Starlit.Events.WorldScanner.onSquare.Add(function(ctx) ... end)
 
+-- Listen only to the specific scanner
+-- built-in
+Starlit.Events.WorldScanner.onSquareFrom["ws.square.nearby.delta"]:Add(function(ctx) ... end)
+-- custom, subscribing to all of its live configs and without de-dupe
+Starlit.Events.WorldScanner.onSquareFrom["MyMod.lootSweeper"]:Add(function(ctx) ... end)
+-- built-in or custom but looking up by handle assigned during WS.enableScanner
+Starlit.Events.WorldScanner.onSquareFrom[handle]:Add(function(ctx) ... end)
 ```
 
 ### Router API (scanner init)
@@ -105,8 +118,13 @@ When a scanner is enabled, its `initFn(router, config)` receives a router with t
 - `router.emitSquare(squareCtx)` / `router.emitRoom(roomCtx)` – dispatch a validated context to listeners. Throws if required fields are missing.
 - `router.buildSquareCtx(square, overrides?)` – returns a `SquareCtx` with derived identifiers (`squareId`, chunk coords, room fields). Optional `overrides` merge onto the result.
 - `router.buildRoomCtx(roomDef, overrides?)` – returns a `RoomCtx` with validated ids and building reference.
+- `router.tagContext(ctx)` – optional helper to append custom metadata before emission (e.g., `ctx.tags`). Router automatically injects `ctx.sourceScanner` and `ctx.instanceId`.
 
-Routers are per-scanner-instance; do not cache them globally. Logging is left to the scanner (feel free to use `print`, `Events` helpers, or your own logger).
+Routers are per-scanner-instance; do not cache them globally. Logging is left to the scanner (feel free to use `print`, `Events` helpers, or your own logger). Every emitted context is enriched with:
+
+- `ctx.sourceScanner` – the registered scanner ID (e.g., `ws.square.nearby.delta`, `MyMod.lootSweeper`).
+- `ctx.instanceId` – the handle corresponding to the enabled instance (unique per `WS.enableScanner` call).
+- Any metadata you append via `router.tagContext`.
 
 
 ### Emitting Contexts (for scanner authors)
@@ -130,7 +148,7 @@ return function(router, config) -- your initFn
         end
     end
 
-    local starlitEvent = Starlit.Events.WorldScanner.onAnySquareNearby -- replace with your existing stream
+    local starlitEvent = Starlit.Events.WorldScanner.onSquareFrom["ws.square.nearby"] -- replace with your existing scanner ID
 
     starlitEvent.Add(onNearbySquare, {
         radius = config.radius or 20,
@@ -170,6 +188,8 @@ end
 Router helpers (`buildSquareCtx`, `buildRoomCtx`, etc.) ensure consistent formatting, and the router validates required fields before dispatching to consumers.
 
 > **Reduction-only:** Scanners are expected to filter, dedupe, or enrich whatever upstream stream they attach to; they should never invent additional world entities beyond what their source provided. If you need to broaden the stream, add another producer scanner instead of mutating a downstream one.
+
+The shared `Starlit.Events.WorldScanner.on<Type>` streams exist primarily for orchestration, tooling, and debugging—expect duplicate contexts from different scanners as they hand off responsibility. Consumer mods that care about a particular producer should subscribe via `on<Type>From[scannerId]` or filter by `ctx.sourceScanner`.
 
 ### AsyncScanning utility (preview)
 
@@ -225,17 +245,19 @@ Key pieces (subject to adjustment as we prototype):
 
 ## 5. Built-in Scanners (initial target set)
 
-| Scanner ID                 | Primary context(s) | Starlit event(s) emitted                        | Description                                               | Notes                                 |
-| -------------------------- | ------------------ | ------------------------------------------------| --------------------------------------------------------- | ------------------------------------- |
-| `ws.square.load`           | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareLoad`      | Listens to `Events.LoadGridsquare`                        | Equivalent to PK’s current wiring     |
-| `ws.square.initial`        | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareInitial`   | One-time pass across squares already loaded at startup    | Fills cold-start gap                  |
-| `ws.square.nearby`         | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareNearby` | Periodic scan around player vicinity (configurable radius)| Emits firehose stream of nearby squares|
-| `ws.square.nearby.delta`   | `SquareCtx`        | `Starlit.Events.WorldScanner.onNewSquareNearbyDelta` | Emits only newly-seen nearby squares (built atop firehose)| Deduped by squareId                   |
-| `ws.room.nearby`           | `RoomCtx`          | `Starlit.Events.WorldScanner.onRoomNearby`      | Uses square scan + room resolution to emit `RoomCtx`      | Optional; off by default              |
+| Scanner ID                 | Primary context(s) | Starlit event(s) emitted                                   | Description                                               | Notes                                 |
+| -------------------------- | ------------------ | ---------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------- |
+| `ws.square.load`           | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquare`,<br>`Starlit.Events.WorldScanner.onSquareFrom["ws.square.load"]`               | Listens to `Events.LoadGridsquare`                        | Equivalent to PK’s current wiring     |
+| `ws.square.initial`        | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquare`,<br>`Starlit.Events.WorldScanner.onSquareFrom["ws.square.initial"]`            | One-time pass across squares already loaded at startup    | Fills cold-start gap                  |
+| `ws.square.nearby`         | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquare`,<br>`Starlit.Events.WorldScanner.onSquareFrom["ws.square.nearby"]`             | Periodic scan around player vicinity (configurable radius)| Emits firehose stream of nearby squares|
+| `ws.square.nearby.delta`   | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquare`,<br>`Starlit.Events.WorldScanner.onSquareFrom["ws.square.nearby.delta"]`       | Emits only newly-seen nearby squares (built atop firehose)| Deduped by squareId                   |
+| `ws.room.nearby`           | `RoomCtx`          | `Starlit.Events.WorldScanner.onRoom`,<br>`Starlit.Events.WorldScanner.onRoomFrom["ws.room.nearby"]`                   | Uses square scan + room resolution to emit `RoomCtx`      | Optional; off by default              |
 
 > Scanners may emit more than one context type as an optimisation (e.g., a square sweep that also emits corresponding room contexts). Document additional emissions in the scanner notes so consumers know what to expect.
 
 Built-ins are disabled until explicitly enabled via `WS.enableScanner`.
+
+> Listener hint: `Starlit.Events.WorldScanner.onSquareFrom["ws.square.nearby"]` delivers only this scanner’s contexts, while `Starlit.Events.WorldScanner.onSquare` provides the aggregate stream for tooling and cross-scanner coordination.
 
 ---
 
@@ -245,8 +267,8 @@ Built-ins are disabled until explicitly enabled via `WS.enableScanner`.
 2. PromiseKeeper enables the built-ins it needs, keeping the returned handles for teardown:
 
    ```lua
-   local loadHandle = WS.enableScanner("ws.square.loadEvent")
-   local sweepHandle = WS.enableScanner("ws.square.initialSweep")
+   local loadHandle = WS.enableScanner("ws.square.load")
+   local sweepHandle = WS.enableScanner("ws.square.initial")
    ```
 
 3. PromiseKeeper registers as listener:
@@ -259,6 +281,8 @@ Starlit.Events.WorldScanner.onSquare.Add(function(ctx)
        FulfillmentEngine.handleRoom(ctx)
    end)
 ```
+
+(`Starlit.Events.WorldScanner.onSquareFrom["ws.square.nearby.delta"]` is available if PromiseKeeper ever wants the deduped feed only.)
 
 4. Fulfillment engine stays responsible for:
    - Evaluating outstanding requests.
@@ -279,6 +303,7 @@ This keeps the coupling one-way: PK depends on WS, not vice versa.
 - **Scanner authorship:** Third-party mods can ship scanners to, say, detect parked cars, hazard zones, etc. They simply depend on WorldScanner, register under a unique ID, and emit contexts.
 - **Consumer usage:** Mods write listeners that subscribe to the context types they care about. PromiseKeeper is just one consumer.
 - **Starlit integration:** Every dispatch flows through `Starlit.Events.WorldScanner.*`, ensuring Starlit-aware mods/tools stay in sync while the helper wrappers remain available.
+- **Per-scanner channels:** Subscribe via `Starlit.Events.WorldScanner.on<Type>From[scannerId]` to consume only a single scanner; use the aggregate `on<Type>` streams for orchestration or diagnostics.
 - **Async support:** Scanners can schedule themselves via `Events.OnTick` or coroutines; WS itself stays synchronous (it just dispatches contexts when `emit<Type>` is called).
 - **Telemetry (later idea):** Provide optional metrics or debug overlays to inspect scanner performance (e.g., squares per minute, backlog size).
 - **Composable streams:** Expensive emitters (e.g., wide-radius square sweeps) should expose their context stream so downstream scanners can chain and filter instead of re-scanning the same area. This keeps multiple finders lightweight by “sharing the train” of base candidates.
