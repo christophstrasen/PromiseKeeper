@@ -15,7 +15,7 @@ local running = false
 
 -- Process each loaded square at most once per session.
 local seenSquares = {} -- [squareId:number] = true
----@type table<string, { id:string, fulfiller:string, tag:string|nil, matchFn:fun(squareCtx:PKSquareCtx, matchParams:any):(PKTargetSquare|PKTargetRoom)[], matchParams:any }>
+---@type table<string, { id:string, fulfiller:string, tag:string|nil, matchFn:fun(squareCtx:PKSquareCtx, matchParams:any):PKMatcherTarget[], matchParams:any }>
 local squareMatchers = {} -- id -> { id, fulfiller, tag, matchFn, matchParams }
 local erroredFulfillments = {} -- fulfillmentKey -> true
 
@@ -31,7 +31,12 @@ local function buildSquareCtx(sq)
 
 	-- Prefer chunk coords from the engine if available; fallback to math division.
 	local cx, cy = nil, nil
-	--- @todo research e.g. https://projectzomboid.com/modding/zombie/iso/IsoChunk.html if we can load chunk coords
+	if sq.getChunk then
+		local ch = sq:getChunk()
+		if ch and ch.getX and ch.getY then
+			cx, cy = ch:getX(), ch:getY()
+		end
+	end
 	if cx == nil or cy == nil then -- If chunk API is unavailable, fall back to deriving cx,cy from coords (10x10 tiles in PZ).
 		cx, cy = math.floor(x / 10), math.floor(y / 10)
 	end
@@ -110,21 +115,15 @@ local function onSquareLoaded(sq)
 	-- Iterate requested entries via the store
 	deps.store.eachRequested(function(fKey, entry)
 		local t = entry.target
-		if t.type == "IsoSquare" then
-			-- Fast path: compare square IDs
-			if t.squareId and t.squareId == sq:getID() and deps.store.isEligible(fKey) then
-				if callFulfiller(entry.fulfiller, entry.id, entry.tag, sq, fKey) then
-					deps.store.markFulfilled(fKey)
-					deliveredCount = deliveredCount + 1
-				end
+		if t.squareId and t.squareId == sqId and deps.store.isEligible(fKey) then
+			if callFulfiller(entry.fulfiller, entry.id, entry.tag, sq, fKey) then
+				deps.store.markFulfilled(fKey)
+				deliveredCount = deliveredCount + 1
 			end
-		elseif t.type == "roomDef" and sctx.roomId then
-			-- Fast path: compare room IDs
-			if t.roomId and t.roomId == sctx.roomId and deps.store.isEligible(fKey) then
-				if callFulfiller(entry.fulfiller, entry.id, entry.tag, sctx.roomDef, fKey) then
-					deps.store.markFulfilled(fKey)
-					deliveredCount = deliveredCount + 1
-				end
+		elseif t.roomId and sctx.roomId and t.roomId == sctx.roomId and deps.store.isEligible(fKey) then
+			if callFulfiller(entry.fulfiller, entry.id, entry.tag, sctx.roomDef, fKey) then
+				deps.store.markFulfilled(fKey)
+				deliveredCount = deliveredCount + 1
 			end
 		end
 	end)
@@ -141,37 +140,32 @@ local function onSquareLoaded(sq)
 		-- Inner loop: each returned target (must provide a stable key) is considered once.
 		for i = 1, #results do
 			local t = results[i]
-			if t and t.key and t.type then
+			if t and t.key then
 				-- Ensure numeric IDs are present to avoid any string parsing on the hot path.
-				if t.type == "IsoSquare" then
-					if (not t.squareId) and t.ref and t.ref.getID then
-						t.squareId = t.ref:getID()
-					end
-				elseif t.type == "roomDef" then
-					if (not t.roomId) and t.ref and t.ref.getID then
-						t.roomId = t.ref:getID()
-					end
+				if (not t.squareId) and t.ref and t.ref.getID and t.ref.getX then
+					t.squareId = t.ref:getID()
+				elseif (not t.roomId) and t.ref and t.ref.getID and not t.ref.getX then
+					t.roomId = t.ref:getID()
 				end
-				local fKey = deps.store.fulfillmentKey(rec.id, t.key)
-				if deps.store.isEligible(fKey) then
-					local ref = t.ref
-					if not ref then
-						-- Resolve by ID only (no strings, no coords)
-						if t.type == "IsoSquare" and t.squareId then
-							-- We only resolve the *current* square cheaply; for foreign squares, ask matchers to pass ref.
-							if t.squareId == sctx.sq:getID() then
+
+				if t.squareId or t.roomId then
+					local fKey = deps.store.fulfillmentKey(rec.id, t.key)
+					if deps.store.isEligible(fKey) then
+						local ref = t.ref
+						if not ref then
+							-- Resolve by ID only (no strings, no coords)
+							if t.squareId and t.squareId == sctx.sq:getID() then
+								-- We only resolve the *current* square cheaply; for foreign squares, ask matchers to pass ref.
 								ref = sctx.sq
-							end
-						elseif t.type == "roomDef" and t.roomId then
-							if sctx.roomId and t.roomId == sctx.roomId then
+							elseif t.roomId and sctx.roomId and t.roomId == sctx.roomId then
 								ref = sctx.roomDef
 							end
 						end
-					end
 
-					if ref and callFulfiller(rec.fulfiller, rec.id, rec.tag, ref, fKey) then
-						deps.store.markFulfilled(fKey)
-						matchedCount = matchedCount + 1
+						if ref and callFulfiller(rec.fulfiller, rec.id, rec.tag, ref, fKey) then
+							deps.store.markFulfilled(fKey)
+							matchedCount = matchedCount + 1
+						end
 					end
 				end
 			end

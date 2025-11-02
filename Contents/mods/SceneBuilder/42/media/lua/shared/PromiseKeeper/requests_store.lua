@@ -10,6 +10,11 @@ local M = {}
 
 -- ======== Types (EmmyLua) ========
 
+---@class PKStoredTarget
+---@field key string
+---@field squareId? number
+---@field roomId? number
+
 ---@class PKStoredEntry
 ---@field id               string
 ---@field fulfiller        string
@@ -19,7 +24,7 @@ local M = {}
 ---@field status           '"Requested"'|'"Evaluating"'|'"Fulfilled"'
 ---@field maxFulfillments  number
 ---@field fulfillments     number
----@field target           PKRequestTarget
+---@field target           PKStoredTarget
 
 ---@class PKStoredIdBucket
 ---@field id string
@@ -56,7 +61,7 @@ end
 --- Turn author-provided target (roomDef or IsoSquare) into a stable key.
 --- Uses native method presence instead of separate helpers.
 ---@param target any
----@return PKRequestTarget normTarget, string targetKey
+---@return PKStoredTarget normTarget, string targetKey
 local function normalizeTarget(target)
 	U.assertf(target ~= nil, "target required")
 
@@ -65,7 +70,7 @@ local function normalizeTarget(target)
 		local id = target:getID()
 		U.assertf(type(id) == "number", "roomDef:getID must return number")
 		local key = tostring(id) -- idempotence key
-		return { type = "roomDef", key = key, roomId = id }, key
+		return { key = key, roomId = id }, key
 	end
 
 	-- IsoSquare: has getID/getX (getX just to sanity-check it's a square)
@@ -73,12 +78,12 @@ local function normalizeTarget(target)
 		local id = target:getID()
 		U.assertf(type(id) == "number", "IsoSquare:getID must return number")
 		local key = tostring(id) -- idempotence key
-		return { type = "IsoSquare", key = key, squareId = id }, key
+		return { key = key, squareId = id }, key
 	end
 
 	U.assertf(false, "unsupported target type; expected roomDef or IsoSquare")
 	-- unreachable, but keeps Lua happy
-	return { type = "IsoSquare", key = "0", squareId = 0 }, "0"
+	return { key = "0", squareId = 0 }, "0"
 end
 
 ---@param id string
@@ -88,14 +93,13 @@ local function fulfillmentKey(id, targetKey)
 	return tostring(id) .. "|" .. tostring(targetKey)
 end
 
----@param target PKRequestTarget|nil
+---@param target PKStoredTarget|nil
 ---@return table
 local function cloneStoredTarget(target)
 	if type(target) ~= "table" then
 		return {}
 	end
 	return {
-		type = target.type,
 		key = target.key,
 		squareId = target.squareId,
 		roomId = target.roomId,
@@ -197,7 +201,7 @@ M.normalizeTarget = normalizeTarget
 
 ---- Upsert a concrete single-target request into ModData (no evaluation, no side effects beyond persistence).
 --- Responsibilities:
----   1) Normalize author target (roomDef / IsoSquare → {type,key})
+---   1) Normalize author target (roomDef / IsoSquare → { key, roomId? / squareId? })
 ---   2) Compute stable fulfillmentKey = "<id>|<targetKey>"
 ---   3) Create or merge a serialize-safe entry:
 ---        - keep earliest createdAtDays
@@ -280,7 +284,7 @@ local function upsertMatcherRecord(req)
 			status = "Requested",
 			maxFulfillments = tonumber(req.maxFulfillments) or CURRENT_CONFIG.maxFulfillments,
 			fulfillments = 0,
-			target = { type = "IsoSquare", key = "matcher:square" }, -- placeholder key, schema-stable
+			target = { key = "matcher:square" }, -- placeholder key, schema-stable
 		}
 	end
 	if U and U.log then

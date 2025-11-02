@@ -57,7 +57,7 @@ local function matchKitchens(chunkCtx, matchParam)
   for _, roomDef in pairs(chunkCtx.roomDefs) do
     if roomDef:getName() == "kitchen" and ZombRandFloat(0.0, 1.0) < chance then
       local key = tostring(roomDef:getID())  -- stable keys avoid double-spawning
-      results[#results+1] = { type = "roomDef", key = key, ref = roomDef }
+      results[#results+1] = { key = key, roomId = roomDef:getID(), ref = roomDef }
     end
   end
   return results
@@ -122,7 +122,7 @@ Private internals:
 * `createdAtDays`, `cleanAfterDays` (default = 30).
 * `status ∈ Requested | Evaluating | Fulfilled`.
 * `maxFulfillments` (default = 1), `fulfillments` (start = 0).
-* `target = { type="roomDef"|"IsoSquare", key="..." }`.
+* `target` holds the stable `key` plus either `roomId` or `squareId`.
 * For matchers: `mode="chunk"`, `target.key="chunk:<cx,cy>"`.
 
 **In-memory only:**
@@ -188,8 +188,8 @@ On game load, perform one initial sweep over already loaded chunks.
 
 ### `ensureAt({ id, fulfiller, target, ... })`
 
-* `target`: a `roomDef` or `IsoSquare`.
-* Normalizes to `{type, key}`; stores only key.
+* `target`: a `roomDef` or `IsoGridSquare`.
+* Normalizes to `{ key = "...", roomId? = ..., squareId? = ... }` (IDs only).
 * If `(id + targetKey)` exists, merge and keep earliest creation date.
 * Persist immediately, emit `onRequestCreated`.
 * On future chunk load: resolve `ref`, call fulfiller if eligible.
@@ -200,7 +200,7 @@ On game load, perform one initial sweep over already loaded chunks.
 * `matchFn` is **kept in memory only**.
 * On each chunk load:
 
-  * `matchFn(chunkCtx, matchParams)` returns `{type,key,ref}` targets.
+  * `matchFn(chunkCtx, matchParams)` returns `{ key, roomId?/squareId?, ref? }` targets.
   * Each unique `(id + key)` checked and fulfilled once.
 
 ---

@@ -10,17 +10,11 @@
 ---@field roomDef RoomDef|nil
 ---@field roomId integer|nil
 
----@class PKTargetSquare
----@field type '"IsoSquare"'
+---@class PKMatcherTarget
 ---@field key string
----@field squareId number
----@field ref IsoGridSquare|nil
-
----@class PKTargetRoom
----@field type '"roomDef"'
----@field key string
----@field roomId number
----@field ref RoomDef|nil
+---@field squareId? number
+---@field roomId? number
+---@field ref (IsoGridSquare|RoomDef)|nil
 
 ---@class PKRequest
 ---@field id string
@@ -28,12 +22,12 @@
 ---@field tag? string
 ---@field cleanAfterDays? number
 ---@field maxFulfillments? number
----@field target? PKTargetSquare|PKTargetRoom
+---@field target? IsoGridSquare|RoomDef
 ---@field mode? '"square"'
----@field matchFn? fun(squareCtx:PKSquareCtx, matchParams:any): (PKTargetSquare|PKTargetRoom)[]
+---@field matchFn? fun(squareCtx:PKSquareCtx, matchParams:any): PKMatcherTarget[]
 ---@field matchParams? table|nil
 
----@alias PKRequestTarget PKTargetSquare|PKTargetRoom
+---@alias PKRequestTarget IsoGridSquare|RoomDef
 
 local Types = {}
 
