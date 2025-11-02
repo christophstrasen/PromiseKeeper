@@ -67,6 +67,9 @@ local WS = require("WorldScanner")
 
 Scanner authors register their scanner via `WS.registerScanner(scannerId, initFn)`, where `initFn(router, config)` runs each time the scanner is enabled and may return a cleanup function.
 
+- WorldScanner’s **built-in** scanners are already registered; skip this step for IDs listed in the built-in table.
+- Custom scanners (yours or third-party) **must** register themselves during mod boot before you can enable them.
+
 ```lua
 WS.registerScanner("MyMod.lootSweeper", function(router) ... end)
 
@@ -94,11 +97,10 @@ Starlit.Events.WorldScanner.onNewSquareNearby.Add(function(squareCtx) ... end)
 When a scanner is enabled, its `initFn(router, config)` receives a router with the following surface:
 
 - `router.emitSquare(squareCtx)` / `router.emitRoom(roomCtx)` – dispatch a validated context to listeners. Throws if required fields are missing.
-Routers are per-scanner-instance; do not cache them globally.
+- `router.buildSquareCtx(square, overrides?)` – returns a `SquareCtx` with derived identifiers (`squareId`, chunk coords, room fields). Optional `overrides` merge onto the result.
+- `router.buildRoomCtx(roomDef, overrides?)` – returns a `RoomCtx` with validated ids and building reference.
 
-### Router internals
-- `router.buildSquareCtx(square, overrides?)` – private/internal function that returns a `SquareCtx` with derived identifiers (`squareId`, chunk coords, room fields). Optional `overrides` merge onto the result.
-- `router.buildRoomCtx(roomDef, overrides?)` – private/internal function that returns a `RoomCtx` with validated ids and building reference.
+Routers are per-scanner-instance; do not cache them globally. Logging is left to the scanner (feel free to use `print`, `Events` helpers, or your own logger).
 
 
 ### Emitting Contexts (for scanner authors)
@@ -117,7 +119,7 @@ return function(router, config) -- your initFn
         end
 
         if YOUR_CUSTOM_LOGIC then
-            log("[myFinder] picked square " ..  tostring(event.square))
+            print("[myFinder] picked square " .. tostring(event.square))
             emitSquare(router.buildSquareCtx(event.square))
         end
     end
@@ -146,8 +148,8 @@ return function(router) -- your initFn
         emitSquare(router.buildSquareCtx(sq))
 
         if sq:getRoom() and YOUR_CUSTOM_LOGIC then
-            log("[myFinder] picked roomDef " ..  tostring(sq:getRoom():getRoomDef))
-            emitRoom(router.buildRoomCtx(sq:getRoom():getRoomDef))
+            print("[myFinder] picked room " .. tostring(sq:getRoom()))
+            emitRoom(router.buildRoomCtx(sq:getRoom():getRoomDef()))
         end
     end
 
@@ -174,7 +176,7 @@ return function(router, config)
     local emitSquare = router.emitSquare
 
     local handle = AsyncScanning.startSquareSweep({
-        origin = config.origin or getPlayer(), -- defaults to the local player, single player
+        origin = config.origin or getSpecificPlayer(0), -- defaults to the local player
         radius = config.radius or 80,
         batchSize = config.batchSize or 32,
         throttleMs = config.throttleMs or 25,
@@ -184,7 +186,9 @@ return function(router, config)
             end
         end,
         onComplete = function(stats)
-            router.logger:debug("Sweep finished (%d squares)", stats.total)
+            if stats then
+                print(string.format("[AsyncSweep] finished (%d squares)", stats.total or 0))
+            end
         end,
     })
 
@@ -196,7 +200,7 @@ end
 
 Key pieces (subject to adjustment as we prototype):
 - `AsyncScanning.startSquareSweep(opts)` / `startRoomSweep(opts)` return a handle with `:cancel()` and `:isRunning()`.
-- `opts.origin` must be an `IsoPlayer` (default: `getSpecificPlayer(0)`) or an `IsoGridSquare`. Any other type raises a validation error.
+- `opts.origin` must be an `IsoPlayer` (default: `getSpecificPlayer(0)`; ensure one exists in your context) or an `IsoGridSquare`. Any other type raises a validation error.
 - `opts.onBatch(batch)` receives arrays of `IsoGridSquare` or `RoomDef` that the scanner can turn into contexts.
 - Optional `opts.onComplete()` fires after the sweep finishes or is cancelled.
 
@@ -206,10 +210,10 @@ Key pieces (subject to adjustment as we prototype):
 
 1. **Module require:** Mods call `require("WorldScanner")`. This returns the singleton table with registration methods.
 2. **Scanner setup:** Scanners register themselves (either built-in or third-party). Registration is idempotent.
-3. **WS.start(config?):** PromiseKeeper (or another orchestrator) calls `WS.start()` once to wire up the router and apply global configuration (logging levels, validation flags, etc.). Starting never enables scanners by itself.
+3. **WS.start(config?) (orchestrator-controlled):** An orchestrator (PromiseKeeper, your mod, or tooling) calls `WS.start()` once to wire up the router and apply global configuration (logging levels, validation flags, etc.). If another orchestrator already started WS, the call is a no-op. Scanners remain inactive until explicitly enabled.
 4. **Enable instances:** Call `WS.enableScanner(id, config?)` for each scanner you want running; stash the returned handle(s). Disable them via `WS.disableScanner(handle)` when the instance should stop.
 5. **Events dispatch:** As scanners emit contexts, WS validates them and forwards to listeners. Listeners should be fast and offload heavy work to their own coroutines if needed.
-6. **Shutdown (optional):** `WS.stop()` tears down scanners (calls dispose functions) and clears listeners. Useful for hot-reload / dev-mode.
+6. **Shutdown (optional, orchestrator-controlled):** `WS.stop()` tears down scanners (calls dispose functions) and clears listeners. Call this when unloading the orchestrator (e.g., hot-reload). Repeated `stop` calls are safe no-ops.
 
 ---
 
@@ -258,6 +262,8 @@ Starlit.Events.WorldScanner.onSquare.Add(function(ctx)
 
 5. PromiseKeeper may check-for/enable/disable scanners on-demand per the needs the "requests" have (store the handles for later `WS.disableScanner` calls).
 
+> In environments without PromiseKeeper, your mod becomes the orchestrator: register any custom scanners during boot, call `WS.start()` once, then enable/disable scanners as needed. Remember that built-ins are already registered; you only need to enable them.
+
 This keeps the coupling one-way: PK depends on WS, not vice versa.
 
 ---
@@ -273,7 +279,7 @@ This keeps the coupling one-way: PK depends on WS, not vice versa.
 - **Map/filter pipeline:** Treat the scanner chain as a series of map + filter stages. Primary producers map raw world data into contexts; downstream scanners only narrow or annotate those contexts rather than expanding the set.
 - **Context contract:** Scanners must emit contexts that satisfy the published type contract. For example, `SquareCtx` must include `squareId` (and ideally a `ref` or enough information for consumers to resolve it). If a field is omitted, the consumer **must** be able to recover the reference cheaply. Document any deviations so downstream matchers aren’t surprised.
 - **Configurable instances:** `WS.enableScanner(id, config)` accepts a flat config table. You can enable the same scanner ID multiple times with different configs (e.g., “kitchen” vs “bathroom” room matchers); WorldScanner returns a distinct handle for each instance so you can disable them independently.
-- **Validation & logging:** The router validates contexts before emission; invalid payloads are dropped with a debug log so scanner authors can adjust without crashing consumers. Use `router.logger` for per-scanner diagnostics.
+- **Validation & logging:** The router validates contexts before emission; invalid payloads are dropped with a debug log so scanner authors can adjust without crashing consumers.
 
 ---
 
