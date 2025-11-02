@@ -68,12 +68,13 @@ local WS = require("WorldScanner")
 Scanner authors register their scanner via `WS.registerScanner(scannerId, initFn)`, where `initFn(router, config)` runs each time the scanner is enabled and may return a cleanup function.
 
 ```lua
-WS.registerScanner("promiseKeeper.loadSquare", function(router) ... end)
+WS.registerScanner("MyMod.lootSweeper", function(router) ... end)
 
 -- Enable and disable scanner instances.
-WS.enableScanner("promiseKeeper.loadSquare", { radius = 20 })
-local handle = WS.enableScanner("promiseKeeper.loadSquare", { radius = 5, id = "inner" }) -- second instance
-WS.disableScanner(handle)
+local handle1 = WS.enableScanner("MyMod.lootSweeper", { MyLootRadius = 20 }) --first instance
+local handle2 = WS.enableScanner("MyMod.lootSweeper", { MyLootRadius = 5, MyExtraCond = "Sofa_Tiles" }) -- second instance
+-- .. --
+WS.disableScanner(handle1) -- disable when done
 ```
 
 `WS.enableScanner` always returns a handle; keep it if you plan to stop that particular instance later. `WS.disableScanner(handle)` is the only supported teardown path for specific instances.
@@ -95,7 +96,7 @@ When a scanner is enabled, its `initFn(router, config)` receives a router with t
 - `router.emitSquare(squareCtx)` / `router.emitRoom(roomCtx)` – dispatch a validated context to listeners. Throws if required fields are missing.
 Routers are per-scanner-instance; do not cache them globally.
 
-### Router internals API (scanner init)
+### Router internals
 - `router.buildSquareCtx(square, overrides?)` – private/internal function that returns a `SquareCtx` with derived identifiers (`squareId`, chunk coords, room fields). Optional `overrides` merge onto the result.
 - `router.buildRoomCtx(roomDef, overrides?)` – private/internal function that returns a `RoomCtx` with validated ids and building reference.
 
