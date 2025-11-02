@@ -283,6 +283,7 @@ Starlit.Events.WorldScanner.onSquare.Add(function(ctx)
 ```
 
 (`Starlit.Events.WorldScanner.onSquareFrom["ws.square.nearby.delta"]` is available if PromiseKeeper ever wants the deduped feed only.)
+--- @TODO could invent a onUniqueSquareFrom to only get a square once per "pass"
 
 4. Fulfillment engine stays responsible for:
    - Evaluating outstanding requests.
