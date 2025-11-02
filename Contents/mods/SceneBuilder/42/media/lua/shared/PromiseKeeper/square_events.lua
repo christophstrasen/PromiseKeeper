@@ -15,7 +15,7 @@ local running = false
 
 -- Process each loaded square at most once per session.
 local seenSquares = {} -- [squareId:number] = true
----@type table<string, { id:string, fulfiller:string, tag:string|nil, matchFn:fun(squareCtx:PKSquareCtx, matchParams:any):PKMatcherTarget[], matchParams:any }>
+---@type table<string, PKRequest>
 local squareMatchers = {} -- id -> { id, fulfiller, tag, matchFn, matchParams }
 local erroredFulfillments = {} -- fulfillmentKey -> true
 
@@ -31,12 +31,7 @@ local function buildSquareCtx(sq)
 
 	-- Prefer chunk coords from the engine if available; fallback to math division.
 	local cx, cy = nil, nil
-	if sq.getChunk then
-		local ch = sq:getChunk()
-		if ch and ch.getX and ch.getY then
-			cx, cy = ch:getX(), ch:getY()
-		end
-	end
+	--- @todo explore possibilities of https://projectzomboid.com/modding/zombie/iso/IsoChunk.html
 	if cx == nil or cy == nil then -- If chunk API is unavailable, fall back to deriving cx,cy from coords (10x10 tiles in PZ).
 		cx, cy = math.floor(x / 10), math.floor(y / 10)
 	end
