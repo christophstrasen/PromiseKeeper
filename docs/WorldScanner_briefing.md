@@ -71,13 +71,19 @@ Scanner authors register their scanner via `WS.registerScanner(scannerId, initFn
 - Custom scanners (yours or third-party) **must** register themselves during mod boot before you can enable them.
 
 ```lua
-WS.registerScanner("MyMod.lootSweeper", function(router) ... end)
+-- instantiate an inbuilt scanner
+local ScanAllNear = WS.enableScanner("ws.square.nearby", getPlayer():getCurrentSquare())
 
--- Enable and disable scanner instances.
-local handle1 = WS.enableScanner("MyMod.lootSweeper", { MyLootRadius = 20 }) --first instance
-local handle2 = WS.enableScanner("MyMod.lootSweeper", { MyLootRadius = 5, MyExtraCond = "Sofa_Tiles" }) -- second instance
--- .. --
-WS.disableScanner(handle1) -- disable when done
+-- Register your custom scanner and enable instances of it.
+WS.registerScanner("MyMod.lootSweeper", function(router) ... end)
+local ScanLootWide = WS.enableScanner("MyMod.lootSweeper", { MyLootRadius = 20 }) --first instance
+local ScanSofaLoot = WS.enableScanner("MyMod.lootSweeper", { MyLootRadius = 5, MyExtraCond = "Sofa_Tiles" }) -- second instance
+
+-- disable when done
+WS.disableScanner(ScanAllNear)
+WS.disableScanner(ScanLootWide) 
+WS.disableScanner(ScanSofaLoot)
+
 ```
 
 `WS.enableScanner` always returns a handle; keep it if you plan to stop that particular instance later. `WS.disableScanner(handle)` is the only supported teardown path for specific instances.
@@ -221,10 +227,10 @@ Key pieces (subject to adjustment as we prototype):
 
 | Scanner ID                 | Primary context(s) | Starlit event(s) emitted                        | Description                                               | Notes                                 |
 | -------------------------- | ------------------ | ------------------------------------------------| --------------------------------------------------------- | ------------------------------------- |
-| `ws.square.loadEvent`      | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareLoad`      | Listens to `Events.LoadGridsquare`                        | Equivalent to PK’s current wiring     |
-| `ws.square.initialSweep`   | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareInitial`   | One-time pass across squares already loaded at startup    | Fills cold-start gap                  |
-| `ws.square.nearby`         | `SquareCtx`        | `Starlit.Events.WorldScanner.onAnySquareNearby` | Periodic scan around player vicinity (configurable radius)| Emits firehose stream of nearby squares|
-| `ws.square.nearby.delta`   | `SquareCtx`        | `Starlit.Events.WorldScanner.onNewSquareNearby` | Emits only newly-seen nearby squares (built atop firehose)| Deduped by squareId                   |
+| `ws.square.load`           | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareLoad`      | Listens to `Events.LoadGridsquare`                        | Equivalent to PK’s current wiring     |
+| `ws.square.initial`        | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareInitial`   | One-time pass across squares already loaded at startup    | Fills cold-start gap                  |
+| `ws.square.nearby`         | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareNearby` | Periodic scan around player vicinity (configurable radius)| Emits firehose stream of nearby squares|
+| `ws.square.nearby.delta`   | `SquareCtx`        | `Starlit.Events.WorldScanner.onNewSquareNearbyDelta` | Emits only newly-seen nearby squares (built atop firehose)| Deduped by squareId                   |
 | `ws.room.nearby`           | `RoomCtx`          | `Starlit.Events.WorldScanner.onRoomNearby`      | Uses square scan + room resolution to emit `RoomCtx`      | Optional; off by default              |
 
 > Scanners may emit more than one context type as an optimisation (e.g., a square sweep that also emits corresponding room contexts). Document additional emissions in the scanner notes so consumers know what to expect.
