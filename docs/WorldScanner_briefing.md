@@ -96,7 +96,7 @@ WS.disableScanner(ScanSofaLoot)
 WorldScanner emits through **Starlit Events** on two layers:
 
 - **Shared streams** (`Starlit.Events.WorldScanner.onSquare`, `onRoom`, …) receive every context of that type regardless of origin. Useful for orchestration, debugging, or cross-scanner correlation.
-- **Per-scanner streams** (`Starlit.Events.WorldScanner.onSquareFrom[scannerId]`, `onRoomFrom[scannerId]`, …) deliver only the contexts emitted by a specific scanner ID (built-in or custom).
+- **Per-scanner streams** (`Starlit.Events.WorldScanner.onSquareFrom[key]`, `onRoomFrom[key]`, …) deliver only the contexts emitted by a specific scanner. `key` can be either the scanner ID (`"ws.square.nearby.delta"`, `"MyMod.lootSweeper"`, …) or the handle returned from `WS.enableScanner` when you want to listen to a specific instance/config.
 
 ```lua
 -- Listen to every square context (very verbose, suggested only for debugging, allows to see all events move through the various scanners)
@@ -123,7 +123,7 @@ When a scanner is enabled, its `initFn(router, config)` receives a router with t
 Routers are per-scanner-instance; do not cache them globally. Logging is left to the scanner (feel free to use `print`, `Events` helpers, or your own logger). Every emitted context is enriched with:
 
 - `ctx.sourceScanner` – the registered scanner ID (e.g., `ws.square.nearby.delta`, `MyMod.lootSweeper`).
-- `ctx.instanceId` – the handle corresponding to the enabled instance (unique per `WS.enableScanner` call).
+- `ctx.instanceId` – the handle corresponding to the enabled instance (unique per `WS.enableScanner` call). This same handle is available as a key on `Starlit.Events.WorldScanner.on<Type>From[...]` for per-instance subscriptions.
 - Any metadata you append via `router.tagContext`.
 
 
