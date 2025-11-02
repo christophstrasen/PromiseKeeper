@@ -1,0 +1,238 @@
+# WorldScanner — Async World Scanning Framework (Draft Briefing)
+
+> *Objective: Standalone Lua utility that discovers world targets (squares, rooms, vehicles, etc.) and publishes them to consumers such as PromiseKeeper, other mods, or developer tooling.*
+
+---
+
+## 1. Motivations
+
+- **PromiseKeeper dependency** – PK needs a generic way to know when world elements become safe to mutate. The existing hard-coded `LoadGridsquare` hook is too narrow and cannot cover future needs (rooms, vehicles, map-wide scans).
+- **Shared demand** – Other mods already reinvent “scan the world” loops (e.g. StoryMode world finder). A single, reusable module avoids duplication and lets modders combine scanners.
+- **Loose coupling** – WorldScanner must remain useful without PromiseKeeper. Anyone should be able to require the module, register their own scanners/listeners, or use built-in helpers directly.
+
+---
+
+## 2. High-Level Design
+
+### Core Pieces
+
+| Component        | Role                                                                    |
+| ---------------- | ----------------------------------------------------------------------- |
+| `WorldScanner`   | Registry + dispatcher. Keeps scanner definitions and listener callbacks |
+| **Scanners**     | Producers that discover world entities (squares, rooms, vehicles, …)    |
+| **Listeners**    | Consumers that react to discovered contexts (PromiseKeeper, overlays)   |
+| **Context types**| Structured data describing what was found (e.g. `SquareCtx`, `RoomCtx`) |
+
+### Data Flow
+
+```
+Scanner (producer)  ── emits ctx ──► WorldScanner router ──► listener callbacks (PromiseKeeper etc.)
+```
+
+- Multiple scanners can emit the same context types (e.g. load-event scanner, periodic sweep scanner).
+- Listeners subscribe per context type; they receive immutable copies.
+- All dispatch happens via `WorldScanner.emit<Type>(ctx)` to keep the contract stable.
+
+---
+
+## 3. Planned API Surface (v0.1)
+
+### Module Loading
+
+```lua
+local WS = require("WorldScanner")
+```
+
+### Context Structs
+
+```lua
+---@class WS.SquareCtx
+---@field sq IsoGridSquare
+---@field squareId number
+---@field roomDef RoomDef|nil
+---@field roomId number|nil
+---@field cx integer  -- chunk x
+---@field cy integer  -- chunk y
+
+---@class WS.RoomCtx
+---@field roomDef RoomDef
+---@field roomId number
+---@field buildingDef BuildingDef|nil
+
+```
+
+*(Context structs can expand but should remain additive. Each type denotes a dispatch channel.)*
+
+### Scanner Registration
+
+```lua
+-- Register a scanner factory.
+-- `init` is executed once during WS.start(), receives the router, and returns an optional dispose function.
+WS.registerScanner("promiseKeeper.loadSquare", function(router) ... end)
+
+-- Enable (start) or disable scanners by name.
+WS.enableScanner("promiseKeeper.loadSquare", { radius = 20 })
+WS.enableScanner("promiseKeeper.loadSquare", { radius = 5, id = "inner" }) -- second instance
+WS.disableScanner("custom.vehicleSweep", { id = "north-lot" })
+```
+
+### Listener Registration (Starlit-driven)
+
+WorldScanner emits through **Starlit Events** for ecosystem interoperability.
+
+```lua
+-- Preferred: subscribe via Starlit
+Starlit.Events.WorldScanner.onSquare.Add(function(squareCtx) ... end)
+
+-- Helper wrappers (internally forward to the same Starlit event)
+WS.onSquare(function(squareCtx) ... end)
+WS.onRoom(function(roomCtx) ... end)
+```
+
+### Emitting Contexts (for scanner authors)
+
+Scanners must use the router provided during `init`:
+
+```lua
+return function(router)
+    local emitSquare = router.emitSquare
+    local emitRoom   = router.emitRoom
+
+    -- Example: hook into Events.LoadGridsquare
+    local function onLoadSquare(sq)
+        emitSquare(router.buildSquareCtx(sq))
+    end
+
+    Events.LoadGridsquare.Add(onLoadSquare)
+
+    -- Return highly recommended teardown callback
+    return function()
+        Events.LoadGridsquare.Remove(onLoadSquare)
+    end
+end
+```
+
+Router helpers (`buildSquareCtx`, etc.) ensure consistent formatting, and the router validates required fields before dispatching to consumers.
+
+---
+
+## 4. Lifecycle
+
+1. **Module require:** Mods call `require("WorldScanner")`. This returns the singleton table with registration methods.
+2. **Scanner setup:** Scanners register themselves (either built-in or third-party). Registration is idempotent.
+3. **WS.start(config?):** PromiseKeeper (or another orchestrator) calls `WS.start()` once, passing optional configuration (e.g. enabling certain built-in scanners). Scanners are *inactive until explicitly enabled*; `start` wires the router, enables the requested scanners, and marks WS as running.
+4. **Events dispatch:** As scanners emit contexts, WS validates them and forwards to listeners. Listeners should be fast and offload heavy work to their own coroutines if needed.
+5. **Shutdown (optional):** `WS.stop()` tears down scanners (calls dispose functions) and clears listeners. Useful for hot-reload / dev-mode.
+
+---
+
+## 5. Built-in Scanners (initial target set)
+
+| Scanner ID                 | Primary context(s) | Starlit event(s) emitted                        | Description                                               | Notes                                 |
+| -------------------------- | ------------------ | ------------------------------------------------| --------------------------------------------------------- | ------------------------------------- |
+| `ws.square.loadEvent`      | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareLoad`      | Listens to `Events.LoadGridsquare`                        | Equivalent to PK’s current wiring     |
+| `ws.square.initialSweep`   | `SquareCtx`        | `Starlit.Events.WorldScanner.onSquareInitial`   | One-time pass across squares already loaded at startup    | Fills cold-start gap                  |
+| `ws.square.nearby`         | `SquareCtx`        | `Starlit.Events.WorldScanner.onAnySquareNearby` | Periodic scan around player vicinity (configurable radius)| Emits firehose stream of nearby squares|
+| `ws.square.nearby.delta`   | `SquareCtx`        | `Starlit.Events.WorldScanner.onNewSquareNearby` | Emits only newly-seen nearby squares (built atop firehose)| Deduped by squareId                   |
+| `ws.room.nearby`           | `RoomCtx`          | `Starlit.Events.WorldScanner.onRoomNearby`      | Uses square scan + room resolution to emit `RoomCtx`      | Optional; off by default              |
+
+> Scanners may emit more than one context type when it’s an optimisation (e.g. a square sweep that also emits corresponding room contexts). Document additional emissions in the scanner notes so consumers know what to expect.
+
+Built-ins are disabled until explicitly enabled via `WS.start` / `WS.enableScanner`.
+
+---
+
+## 6. PromiseKeeper Integration Concept
+
+1. PromiseKeeper requires WorldScanner and calls `WS.start({ enable = { "ws.square.loadEvent", "ws.square.initialSweep" } })`.
+2. PromiseKeeper registers as listener:
+
+   ```lua
+Starlit.Events.WorldScanner.onSquare.Add(function(ctx)
+       FulfillmentEngine.handleSquare(ctx)
+   end)
+   Starlit.Events.WorldScanner.onRoom.Add(function(ctx)
+       FulfillmentEngine.handleRoom(ctx)
+   end)
+   ```
+
+3. Fulfillment engine stays responsible for:
+   - Evaluating outstanding requests.
+   - Running matchers (`ensureMatchingForSquare`, future room/vehicle matchers).
+   - abstracting and providing short-hands/shims like `ensureAt`
+   - Logging, error guards, idempotence.
+
+4. PromiseKeeper may check-for/enable/disable scanners on-demand per the needs the "requests" have.
+
+This keeps the coupling one-way: PK depends on WS, not vice versa.
+
+---
+
+## 7. Extensibility & Modder Experience
+
+- **Scanner authorship:** Third-party mods can ship scanners to, say, detect parked cars, hazard zones, etc. They simply depend on WorldScanner, register under a unique ID, and emit contexts.
+- **Consumer usage:** Mods write listeners that subscribe to the context types they care about. PromiseKeeper is just one consumer.
+- **Starlit integration:** Every dispatch flows through `Starlit.Events.WorldScanner.*`, ensuring Starlit-aware mods/tools stay in sync while the helper wrappers remain available.
+- **Async support:** Scanners can schedule themselves via `Events.OnTick` or coroutines; WS itself stays synchronous (it just dispatches contexts when `emit<Type>` is called).
+- **Telemetry (later idea):** Provide optional metrics or debug overlays to inspect scanner performance (e.g., squares per minute, backlog size).
+- **Composable streams:** Expensive emitters (e.g., wide-radius square sweeps) should expose their context stream so downstream scanners can chain and filter instead of re-scanning the same area. This keeps multiple finders lightweight by “sharing the train” of base candidates.
+- **Context contract:** Scanners must emit contexts that satisfy the published type contract. For example, `SquareCtx` must include `squareId` (and ideally a `ref` or enough information for consumers to resolve it). If a field is omitted, the consumer **must** be able to recover the reference cheaply. Document any deviations so downstream matchers aren’t surprised.
+- **Configurable instances:** `WS.enableScanner(id, config)` should accept a flat config table. Enabling the same scanner ID multiple times with different configs (e.g., two room matchers for “kitchen” and “bathroom”) is allowed; WS will treat `(id, config)` as distinct runtime instances and track each dispose callback separately.
+- **Validation & logging:** The router validates contexts before emission; invalid payloads are dropped with a debug log so scanner authors can adjust without crashing consumers.
+
+---
+
+## 8. Roadmap Sketch
+
+1. **Bootstrap (v0.1)**
+   - Implement module skeleton, scanner/ listener registries, router helpers.
+   - Port the current PromiseKeeper `LoadGridsquare` logic into a built-in scanner.
+   - Add initial sweep and simple envelope scanner.
+2. **PromiseKeeper adoption**
+   - Update PromiseKeeper to depend on WS and consume its events.
+   - Verify ensureAt/ matcher flows with the new router.
+3. **Vehicle / Room expansions (v0.2+)**
+   - Introduce additional context types and built-in scanners as needed.
+   - Document the standard context fields.
+4. **Public release**
+   - Publish API docs, sample scanners, debugging utilities.
+
+---
+
+## 9. Naming & Packaging
+
+- **Module name:** `WorldScanner` (or `StarlitWorldScanner` if we want a namespace prefix).
+- **Directory layout (suggested for new repo):**
+
+```
+world-scanner/
+ ├─ media/lua/shared/WorldScanner.lua
+ ├─ media/lua/shared/WorldScanner/scanners/*.lua   -- built-ins
+ ├─ media/lua/shared/WorldScanner/types.lua        -- context structs
+ ├─ docs/overview.md
+ ├─ examples/*.lua
+```
+
+- PromiseKeeper would depend on this repo (as submodule or packaged mod).
+
+---
+
+## 10. Open Questions
+
+- How to handle conflicting scanner IDs or double-registration (plan: overwrite with warning).
+- Whether to ship a minimal scheduler inside WS for coroutine-based scanners (leaning no—authors can attach to `Events.OnTick` themselves).
+- Config surface: do we expose `WS.config` for tuning envelope radius, batch sizes, etc., or leave that to each scanner?
+- Should WS expose a global dedupe layer (e.g., once a square is emitted, never emit again unless explicitly reset), or leave dedupe to consumers like PromiseKeeper?
+
+---
+
+### Summary
+
+WorldScanner aims to be the shared “world discovery” backbone:
+
+- Standalone, reusable, extensible.
+- PromiseKeeper consumes it but doesn’t own it.
+- Scanners emit typed contexts; listeners act on them.
+- Built-in support for square/room scans with room for future context types.
+
+Once this briefing is approved, we can spin up the dedicated repo and start porting the current PromiseKeeper scanning logic into WorldScanner’s first built-in scanners.

@@ -1,19 +1,12 @@
 -- test.lua — lightweight helper to exercise PromiseKeeper with SceneBuilder's full demo.
 
 local PromiseKeeper = require("PromiseKeeper")
-local fulldemo = require("SceneBuilder/prefabs/demo_full")
 
 local U = require("PromiseKeeper/util")
 local LOG_TAG = "[PromiseKeeper Test]"
 local log = U.makeLogger(LOG_TAG)
 
 local Test = {}
-
-local function ensureDemoFulfiller()
-	PromiseKeeper.registerFulfiller("pk_demo_full_room", function(ctx)
-		fulldemo.makeForRoomDef(ctx.target)
-	end, "Scene")
-end
 
 local function currentRoomDef()
 	local player = getSpecificPlayer(0) or getPlayer()
@@ -42,12 +35,15 @@ function Test.ensureDemoForPlayerRoom()
 		log("aborted: " .. tostring(err))
 		return false
 	end
+	local fulldemo = require("SceneBuilder/prefabs/demo_full")
 
-	ensureDemoFulfiller()
+	PromiseKeeper.registerFulfiller("pk_demo_full_room", function(ctx)
+		fulldemo.makeForRoomDef(ctx.target)
+	end, "Scene")
 
 	local roomId = roomDef:getID()
 	PromiseKeeper.ensureAt({
-		id = "pk-demo-full-room",
+		id = "pk-demo-full-roomID1",
 		fulfiller = "pk_demo_full_room",
 		tag = "Test",
 		target = roomDef,
@@ -59,3 +55,12 @@ function Test.ensureDemoForPlayerRoom()
 end
 
 return Test
+
+--[[
+
+test = require("PromiseKeeper/test")
+test.ensureDemoForPlayerRoom()
+
+
+]]
+--

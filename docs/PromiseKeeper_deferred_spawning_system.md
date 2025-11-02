@@ -1,301 +1,241 @@
-Document date: 2025-11-01
+Document date: 2025-03-01
 
-# Given that
+# PromiseKeeper — Deferred Fulfilment System (v1, square-first)
 
-> The modder wants to change or create something in the world.
-> They know exactly what they want to change/create and have the code for it.
-> They either know exactly where/when in the game that should happen or they are flexible and may indeed wish to set dynamic rules.
-> **Problem**: They cannot change/create it _yet_ because the world isn't ready (chunk load or any other condition, world-time etc. ..)
-> **Vision**: So they ask a system that tracks their wishes and fulfills them _when_ and _where_ the world is ready for them.
-
-# Solution (pre-implement)
-
-Single world change at precise location, when location is ready
-```lua
-
-local PromiseKeeper = require("PromiseKeeper")
-
---- User provided function to serve as fulfiller: called once per roomDef
----@param roomDef RoomDef
----@param meta { id:string, fulfiller:string, tag:string|nil }
-function MyPrefabs.LabScene.makeForRoomDef(roomDef, meta)
-  -- build with SceneBuilder ...
-end
-
-
-PromiseKeeper.registerFulfiller("destroyed_lab_scene", LabScene.makeForRoomDef, "Scene")
-
----@type RoomDef
-local LabRoomDef = MyFinder.pickRoomForLab()  -- your own resolver
--- or local LabRoomDef = getCell():getGridSquare(10677, 9783, 0) -- example coords
-
-PromiseKeeper.ensureAt({
-  id        = "intro-destroyed-lab-A",
-  fulfiller = "destroyed_lab_scene",
-  target    = LabRoomDef,
-})
-
-```
-
-Permanent promise that affects all chunks
-```lua
-
-local PromiseKeeper = require("PromiseKeeper")
-
---- User provided function to serve as fulfiller: called once per roomDef
-function MyPrefabs.KitchenScene.makeForRoomDef(roomDef, meta)
-  -- build with SceneBuilder ...
-end
-
-PromiseKeeper.registerFulfiller("kitchen_oddity_scene", KitchenScene.makeForRoomDef, "Scene")
-
--- Matcher: receives both chunkCtx and optional matchParam table
-local function matchKitchens(chunkCtx, matchParam)
-  local results = {}
-  local chance = (matchParam and matchParam.chance) or 1.0
-
-  for _, roomDef in pairs(chunkCtx.roomDefs) do
-    if roomDef:getName() == "kitchen" and ZombRandFloat(0.0, 1.0) < chance then
-      local key = tostring(roomDef:getID())  -- stable keys avoid double-spawning
-      results[#results+1] = { key = key, roomId = roomDef:getID(), ref = roomDef }
-    end
-  end
-  return results
-end
-
--- PromiseKeeper ensures these scenes exist once per unique target
-PromiseKeeper.ensureMatchingForChunk({
-  id          = "global-kitchen-oddities",
-  fulfiller   = "kitchen_oddity_scene",
-  matchFn     = matchKitchens,
-  matchParams = { chance = 0.2},  -- every 5th kitchen
-  maxFulfillments = 999999        -- GLOBAL cap to this promise ID. For "permanent promises" set > total chunks on the map
-})
-
-```
-
-
-# **PromiseKeeper — Deferred Spawning System Top-Down Implementation Plan (v1, chunk-first))**
+PromiseKeeper lets modders declare “promises” of world changes that should occur later, once the relevant world elements (squares, rooms, vehicles in the future) are safe to mutate. Version 1 focuses on Build 42 square/room fulfilment and integrates with the external **WorldScanner** module for candidate discovery.
 
 ---
 
 ## 0) Purpose & Principles
 
-**Goal:**
-Let modders *declare* world changes that should happen **later**, when the target area (chunk, room, square) becomes safe to modify.
+**Goal:**  
+Allow modders to queue deterministic fulfilment work (“build this prefab here”) that triggers automatically when its target comes online.
 
-**Model:**
+**Key principles**
 
-* Version 1 focuses on **chunk-first** triggers (no proximity polling).
-* Promises are **idempotent** per `(id + targetKey)` — safe from duplicates.
-* Persistent data lives in **world ModData**.
-* Cleanup happens automatically after `cleanAfterDays`.
-* Uses **Starlit `LuaEvent`** internally for lifecycle hooks.
-
-Think of it as:
-
-> “Register a fulfiller. Declare a promise. It gets kept when the world is ready.”
+* **Idempotence:** Every `(request id + target key)` is fulfilled at most once.
+* **Persistence:** Requests survive reloads and are stored in world `ModData`.
+* **Safety:** Fulfiller functions are wrapped; errors are logged, not rethrown.
+* **Modularity:** PromiseKeeper listens to WorldScanner events instead of probing chunks directly.
+* **Extensibility:** Future context types (vehicles, meta zones) can be added without altering the persistence layer.
 
 ---
 
-## 1) Public Surface
+## 1) Quickstart Examples
 
-| Method                                             | Purpose                                  |
-| -------------------------------------------------- | ---------------------------------------- |
-| `registerFulfiller(name, fn, tag?)`                | Register callable fulfillers.            |
-| `ensureAt(request)`                                | Single known target (roomDef or square). |
-| `ensureMatchingForChunk(request)`                  | Repeating matcher for chunk scanning.    |
-| *(optional)* `getStatus(id)` / `listDelivered(id)` | Debug helpers.                           |
-
-Private internals:
-`_registry`, `_requests`, `_events`, `_config`.
-
----
-
-## 2) Data Model
-
-**Request record (persisted in ModData):**
-
-* `id` — unique string (per author).
-* `fulfiller` — key into registry.
-* `tag` — optional grouping label.
-* `createdAtDays`, `cleanAfterDays` (default = 30).
-* `status ∈ Requested | Evaluating | Fulfilled`.
-* `maxFulfillments` (default = 1), `fulfillments` (start = 0).
-* `target` holds the stable `key` plus either `roomId` or `squareId`.
-* For matchers: `mode="chunk"`, `target.key="chunk:<cx,cy>"`.
-
-**In-memory only:**
-
-* `ref` — actual resolved roomDef or square.
-* `fulfillmentKey = id .. "|" .. target.key`.
-* `matchFn` — transient function, not serialized.
-
-**Storage layout:**
-`ModData.PromiseKeeper.requests[id] = { … }`
-Optionally `byTarget[fulfillmentKey] = true` for quick duplicate checks.
-
----
-
-## 3) Lifecycle
-
-**States:** `Requested → Evaluating → Fulfilled`
-
-1. **Requested:** waiting for matching chunk load.
-2. **Evaluating:** chunk loads; resolve target; call fulfiller.
-3. **Fulfilled:** increment counter; mark complete if limit reached.
-
-**Idempotence:** skip fulfillment if count ≥ maxFulfillments.
-
-**Cleanup:** once per game day, remove fulfilled entries older than `cleanAfterDays`.
-Emit one summary log per cleanup cycle.
-
----
-
-## 4) Events & Integration
-
-**Internal (private) events:**
-
-* `onRequestCreated(request)`
-* `onEvaluating(request, ctx)`
-* `onFulfilled(request, key, info?)`
-* `onDuplicateSuppressed(request, key)`
-* `onCleaned(count)`
-
-**Chunk hook:**
-
-* Subscribe to Build 42 *chunk-loaded* event.
-* For each loaded chunk:
-
-  * Create a lightweight `chunkCtx` with `(cx, cy)` and iterators for contained rooms/squares.
-  * Run all **Requested** entries that might apply:
-
-    * `ensureAt`: if target lies in this chunk.
-    * `ensureMatchingForChunk`: call its `matchFn(chunkCtx)` to get candidate targets.
-
-**Startup:**
-On game load, perform one initial sweep over already loaded chunks.
-
----
-
-## 5) Public API Behavior
-
-### `registerFulfiller(name, fn, tag?)`
-
-* Adds or replaces a fulfiller (`fn(ctx)`).
-* Tag is informational (e.g. `"Scene"`, `"Ambient"`).
-* Log a warning on overwrite.
-
-### `ensureAt({ id, fulfiller, target, ... })`
-
-* `target`: a `roomDef` or `IsoGridSquare`.
-* Normalizes to `{ key = "...", roomId? = ..., squareId? = ... }` (IDs only).
-* If `(id + targetKey)` exists, merge and keep earliest creation date.
-* Persist immediately, emit `onRequestCreated`.
-* On future chunk load: resolve `ref`, call fulfiller if eligible.
-
-### `ensureMatchingForChunk({ id, fulfiller, matchFn, matchParams, ... })`
-
-* Persistent record with `mode="chunk"`.
-* `matchFn` is **kept in memory only**.
-* On each chunk load:
-
-  * `matchFn(chunkCtx, matchParams)` returns `{ key, roomId?/squareId?, ref? }` targets.
-  * Each unique `(id + key)` checked and fulfilled once.
-
----
-
-## 6) Fulfiller Context
-
-Each fulfiller receives:
+### Single known target (`ensureAt`)
 
 ```lua
-{
-  request = <immutable request table>,
-  target  = <resolved roomDef or square>,
-  meta    = { id = ..., fulfiller = ..., tag = ... }
-}
+local PromiseKeeper = require("PromiseKeeper")
+
+PromiseKeeper.registerFulfiller("destroyed_lab_scene", function(ctx)
+    MyPrefabs.LabScene.makeForRoomDef(ctx.target, ctx.meta)
+end, "Scene")
+
+local LabRoomDef = MyFinder.pickRoomForLab()
+
+PromiseKeeper.ensureAt({
+    id        = "intro-destroyed-lab-A",
+    fulfiller = "destroyed_lab_scene",
+    target    = LabRoomDef,            -- RoomDef or IsoGridSquare
+    tag       = "Story",
+})
 ```
 
-Determinism inside the fulfiller remains the author’s responsibility.
+PromiseKeeper immediately attempts to resolve the room (if already loaded) and also listens for future square/room contexts from WorldScanner.
+
+### Matcher-driven (`ensureMatchingForSquare`)
+
+```lua
+local PromiseKeeper = require("PromiseKeeper")
+
+PromiseKeeper.registerFulfiller("kitchen_oddity_scene", MyPrefabs.KitchenScene.makeForRoomDef, "Scene")
+
+local function matchKitchens(squareCtx, matchParams)
+    if not squareCtx.roomDef then return nil end
+    if squareCtx.roomDef:getName() ~= "kitchen" then return nil end
+
+    local chance = (matchParams and matchParams.chance) or 1.0
+    if ZombRandFloat(0.0, 1.0) > chance then return nil end
+
+    return {
+        {
+            key = tostring(squareCtx.roomId),
+            roomId = squareCtx.roomId,
+            ref = squareCtx.roomDef,
+        },
+    }
+end
+
+PromiseKeeper.ensureMatchingForSquare({
+    id            = "global-kitchen-oddities",
+    fulfiller     = "kitchen_oddity_scene",
+    matchFn       = matchKitchens,
+    matchParams   = { chance = 0.2 },
+    maxFulfillments = 999999, -- essentially infinite
+})
+```
+
+PromiseKeeper subscribes to square contexts produced by enabled WorldScanner scanners and feeds them through `matchFn`.
 
 ---
 
-## 7) Logging
+## 2) Public Surface
 
-Short, single-line logs (no colons `:`):
+| Method / Property                               | Purpose                                                                    |
+| ------------------------------------------------| ---------------------------------------------------------------------------|
+| `registerFulfiller(name, fn, tag?)`             | Register fulfiller callbacks. Tag is informational.                        |
+| `ensureAt(request)`                             | Persist a single-target promise (RoomDef or IsoGridSquare).                |
+| `ensureMatchingForSquare(request)`              | Persist a matcher that evaluates each candidate square context once.       |
+| `getStatus(id)` / `listDelivered(id)`           | Debug helpers (read-only copies).                                          |
+| `PromiseKeeper.config`                          | Runtime-adjustable defaults (`cleanAfterDays`, `maxFulfillments`, etc.).   |
 
-* Creation: `id`, `fulfiller`, `mode`.
-* Evaluation: chunk coords, candidate count.
-* Fulfillment: `id`, `key`, `count/max`.
-* Suppression: logged once.
-* Cleanup: removed count, oldest/youngest ages.
+**Internal modules** (not part of public API but relevant for architecture):
+`registry.lua`, `requests_store.lua`, `square_events.lua` (soon to be replaced by router), `util.lua`.
 
 ---
 
-## 8) Defaults
+## 3) Data Model (Persisted)
+
+Each promise lives in world `ModData.PromiseKeeper.requests`.
+
+```lua
+---@class PKStoredEntry
+---@field id               string
+---@field fulfiller        string
+---@field tag?             string
+---@field createdAtDays    number
+---@field cleanAfterDays   number
+---@field status           '"Requested"'|'"Evaluating"'|'"Fulfilled"'
+---@field maxFulfillments  number
+---@field fulfillments     number
+---@field target           { key:string, squareId?:number, roomId?:number }
+```
+
+* `fulfillmentKey = id .. "|" .. target.key`.
+* `requestsRoot.byId[id].entries[fulfillmentKey] = PKStoredEntry`.
+* `requestsRoot.byId[id].delivered = { fulfillmentKey, ... }` (append-only history).
+
+Runtime-only:
+
+* `matchFn`, `matchParams`, and candidate refs stay in memory; they are not serialized.
+* Fulfiller registry keeps `{ fn, tag }` pairs keyed by name.
+
+---
+
+## 4) Fulfilment Pipeline
+
+1. **Registration**
+   * `ensureAt` / `ensureMatchingForSquare` validate input and persist the request (or merge with existing entry).
+   * `ensureAt` immediately attempts to resolve the target via `Fulfillment.tryFulfillNow` (uses `getCell():getGridSquare` or room square iteration) before returning.
+
+2. **WorldScanner events**
+   * PromiseKeeper depends on **WorldScanner** and enables standard scanners (`ws.square.loadEvent`, `ws.square.initialSweep`, etc.).
+   * Scanners publish `SquareCtx`/`RoomCtx` via `Starlit.Events.WorldScanner.*`. PromiseKeeper registers listeners (`Starlit.Events.WorldScanner.onSquare.Add(...)`).
+   * **Macro contract (Scanner → PromiseKeeper):** WorldScanner must only emit contexts that satisfy the published contract for that type (`squareId`, `roomId`, etc.). If `ref` is omitted, the context must contain enough identifiers for PromiseKeeper to re-resolve the target efficiently.
+
+3. **Dispatch**
+   * Candidate contexts pass through the PromiseKeeper router (currently `square_events.lua`, will be replaced by `router.lua`).
+   * For each stored entry with matching IDs:
+     * If eligible (`fulfillments < maxFulfillments`) and not yet fulfilled, execute the fulfiller inside a `pcall`.
+     * On success: increment counters, append to `delivered`, log once.
+     * On failure: log once per `(fulfillmentKey)`, leave status as `Requested` for future attempts.
+   * **Macro contract (Matcher → PromiseKeeper):** Matchers must treat incoming contexts as read-only, return stable keys, and only yield matches that their associated fulfiller can handle. Returning an empty table means “no match.” Returning `nil` is considered a faulty matcher and triggers a debug warning.
+
+4. **Cleanup**
+   * Daily (or hourly fallback) cleanup removes fulfilled entries older than `cleanAfterDays`.
+   * Logs summarise count removed and oldest/youngest age.
+
+---
+
+## 5) WorldScanner Integration
+
+PromiseKeeper assumes WorldScanner is present and:
+
+* Calls `WorldScanner.start({ enable = { "ws.square.loadEvent", "ws.square.initialSweep" } })` during its own `startOnce`.
+* Subscribes to `Starlit.Events.WorldScanner.onSquare` (and later `onRoom`, `onVehicle` when relevant).
+* Provides minimal helpers (`PromiseKeeper.enableScanner(id)`, `PromiseKeeper.disableScanner(id)`) that proxy to WorldScanner for modder convenience (future work).
+* (Future) Emit a debug warning if the required context type has no active scanners.
+
+**Context expectations**
+
+```lua
+---@class PKSquareCtx
+---@field sq IsoGridSquare
+---@field squareId number
+---@field roomDef RoomDef|nil
+---@field roomId number|nil
+---@field cx integer
+---@field cy integer
+```
+
+Matcher functions receive `PKSquareCtx` plus the `matchParams` supplied at registration.
+
+---
+
+## 6) Logging
+
+PromiseKeeper uses concise logging (no colons) via `PromiseKeeper/util`:
+
+* `initialized` — store + scanner bootstrap complete.
+* `ensureAt queued id <id> key <fKey>`
+* `ensureAt merge id <id> key <fKey>`
+* `square matcher attached` / `matched via square matchers` etc.
+* Error envelope logs: `fulfiller error id=<id> key=<fKey> err=<message>`
+* Cleanup summary: `cleanup removed=<count> oldestDays=<..> newestDays=<..>`
+* **Macro contract (PromiseKeeper → Fulfiller):** Fulfillers may be invoked multiple times if they throw; they must handle idempotence internally (PromiseKeeper only guards at the `(id,key)` level).
+
+Logs only print when `getDebug()` is true to reduce noise in production.
+
+---
+
+## 7) Configuration Defaults
 
 ```lua
 PromiseKeeper.config = {
-  cleanAfterDays = 30,
-  maxFulfillments = 1
+    cleanAfterDays = 30,
+    maxFulfillments = 1,
 }
 ```
 
----
-
-## 9) Chunk Utilities
-
-Expose simple helpers:
-
-* `rooms(typeName?) → iterator`
-* `squares(filterFn?) → iterator`
-
-Authors must return **stable keys** from matchers to ensure idempotence.
+Mods can mutate `PromiseKeeper.config` before registering requests to override defaults (per-request values still win).
 
 ---
 
-## 10) Save & Load
+## 8) Save & Load
 
-**On game load:**
-
-* Load persisted ModData.
-* For any matching requests whose fulfillers were re-registered, re-attach their in-memory `matchFn`.
-  (If the mod didn’t re-register it, leave dormant and warn.)
-* Sweep loaded chunks once to deliver pending promises.
-
-**On save:**
-Sync current `_requests` back to ModData (omit any functions or refs).
+* **On load**: `Store.loadOrInit(config)` reads/initialises the ModData tables, then PromiseKeeper starts WorldScanner scanners and performs a first pass over already loaded squares via the scanner’s `initialSweep`.
+* **On save**: any mutated `requestsRoot` state lives directly in ModData and is written by the game; no extra work required.
+* **Hot reload**: re-registering a fulfiller replaces the previous entry (with a warning). Requests referencing the fulfiller continue using the new function.
 
 ---
 
-## 11) Validation Plan (no code)
+## 9) Validation Plan
 
-| Scenario              | Expectation                                                  |
-| --------------------- | ------------------------------------------------------------ |
-| Single `ensureAt`     | Fulfilled once on entering target chunk; survives reloads.   |
-| Chunk matcher         | Each unique target fulfilled once; revisits don’t duplicate. |
-| Duplicate suppression | Second identical `ensureAt` ignored with log.                |
-| Cleanup               | Old fulfilled entries removed after threshold.               |
-| Hot-reload            | Re-register fulfillers without duplication.                  |
-
----
-
-## 12) Future Extensions
-
-Planned later versions may add:
-
-* Proximity-based matchers (`ensureMatchingNearPlayer`, etc.).
-* Expiry for undelivered requests.
-* Priorities or ordering.
-* Optional public read-only events (`onDelivered`, `onCleaned`).
+| Scenario                        | Expectation                                                               |
+| --------------------------------| --------------------------------------------------------------------------|
+| Immediate `ensureAt`            | Fulfilled instantly if target square/room already loaded.                 |
+| Deferred `ensureAt`             | Fulfilled once the square arrives via WorldScanner events.                |
+| Matcher dedupe                  | Each `(id,key)` pair fulfilled at most once, even if matcher returns often.|
+| Error resilience                | Fulfiller exceptions are logged; request remains pending for future retry.|
+| Cleanup                         | Fulfilled entries pruned after `cleanAfterDays`.                          |
+| Hot reload                      | Re-register fulfilers without duplicating requests.                       |
+| Scanner toggling (future)       | Enabling/disabling scanners does not corrupt stored requests.             |
 
 ---
 
-### Summary
+## 10) Future Extensions
 
-This plan keeps **PromiseKeeper** small, deterministic, and safe:
+* **Router refactor:** Replace `square_events.lua` with a more general `router.lua` that consumes multiple context types.
+* **Scanner control API:** Surface `PromiseKeeper.enableScanner(id)` / `disableScanner(id)` once WorldScanner exposes them.
+* **Additional context support:** Room-level matchers, vehicle matchers, meta-grid selectors.
+* **Promise expiry:** Optional TTL for requests that never become eligible.
+* **Analytics:** Lightweight metrics for fulfilled/matched counts over time.
 
-* **Chunk-driven** world changes.
-* **Persistent and idempotent** behavior.
-* **Minimal author friction** — register → declare → forget.
+---
+
+## Summary
+
+* PromiseKeeper stores and fulfils world promises safely and deterministically.
+* WorldScanner supplies the “what squares/rooms are live” signal so PromiseKeeper stays lean.
+* The API remains simple for mod authors: register a fulfiller, declare a promise, and let the system handle the rest.

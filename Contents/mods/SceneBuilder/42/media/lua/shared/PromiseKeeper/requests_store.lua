@@ -65,16 +65,16 @@ end
 local function normalizeTarget(target)
 	U.assertf(target ~= nil, "target required")
 
-	-- roomDef: has getID/getName
-	if type(target) == "table" and target.getID and target.getName then
+	local targetType = type(target)
+
+	if (targetType == "table" or targetType == "userdata") and instanceof(target, "RoomDef") then
 		local id = target:getID()
 		U.assertf(type(id) == "number", "roomDef:getID must return number")
 		local key = tostring(id) -- idempotence key
 		return { key = key, roomId = id }, key
 	end
 
-	-- IsoSquare: has getID/getX (getX just to sanity-check it's a square)
-	if type(target) == "table" and target.getID and target.getX then
+	if (targetType == "table" or targetType == "userdata") and instanceof(target, "IsoGridSquare") then
 		local id = target:getID()
 		U.assertf(type(id) == "number", "IsoSquare:getID must return number")
 		local key = tostring(id) -- idempotence key
