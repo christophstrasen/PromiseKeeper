@@ -1,0 +1,43 @@
+-- time.lua -- game-time helpers without WorldObserver dependency.
+local moduleName = ...
+local Time = {}
+if type(moduleName) == "string" then
+	---@diagnostic disable-next-line: undefined-field
+	local loaded = package.loaded[moduleName]
+	if type(loaded) == "table" then
+		Time = loaded
+	else
+		---@diagnostic disable-next-line: undefined-field
+		package.loaded[moduleName] = Time
+	end
+end
+
+if Time.gameMillis == nil then
+	function Time.gameMillis()
+		local getGameTime = _G.getGameTime
+		if getGameTime then
+			local t = getGameTime()
+			if t and t.getTimeCalendar then
+				local c = t:getTimeCalendar()
+				if c and c.getTimeInMillis then
+					return c:getTimeInMillis()
+				end
+			end
+		end
+		if os and os.time then
+			return os.time() * 1000
+		end
+		return nil
+	end
+end
+
+if Time.cpuMillis == nil then
+	function Time.cpuMillis()
+		if os and os.clock then
+			return os.clock() * 1000
+		end
+		return nil
+	end
+end
+
+return Time

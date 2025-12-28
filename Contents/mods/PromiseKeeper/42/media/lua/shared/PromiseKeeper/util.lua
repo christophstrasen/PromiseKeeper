@@ -173,9 +173,14 @@ end
 --- @param ... any
 --- @return string
 function U.buildKey(...)
-	local t = { ... }
-	for i = 1, #t do
-		local v = t[i]
+	-- NOTE: We intentionally avoid `{...}` + `#t` here:
+	-- - Lua sequences stop at the first nil; `#t` becomes wrong when any argument is nil.
+	-- - PromiseKeeper uses this to build deterministic keys/hashes; silently dropping segments would
+	--   break idempotence (and in the worst case cause cross-promise collisions).
+	local n = select("#", ...)
+	local t = {}
+	for i = 1, n do
+		local v = select(i, ...)
 		if v == nil then
 			t[i] = "∅"
 		elseif type(v) == "table" then
@@ -197,6 +202,66 @@ function U.pickIdxHash(key, k)
 	end
 	local h = U.hash32(key)
 	return (h % k) + 1
+end
+
+--- Subscribe to a PZ/Starlit event source (Add/Remove or addListener/removeListener).
+--- @param eventSource table
+--- @param handler function
+--- @return function|nil unsubscribe
+function U.subscribeEvent(eventSource, handler)
+	if type(eventSource) ~= "table" or type(handler) ~= "function" then
+		return nil
+	end
+	-- WHY this exists:
+	-- PromiseKeeper supports "event-like" situation sources (PZ Events.* and Starlit LuaEvent) in addition
+	-- to first-class streams that implement `:subscribe()`.
+	--
+	-- Both event systems are close enough to adapt, but they differ in two ways:
+	-- - Call style: some expose `Add(fn)` while others want `Add(self, fn)` (same for Remove).
+	-- - Unsubscribe token: some return a token from `addListener` which MUST be used for `removeListener`.
+	--   Passing the original function can crash or leak listeners in some implementations.
+	if type(eventSource.Add) == "function" and type(eventSource.Remove) == "function" then
+		-- Prefer plain function-style (Events.OnTick.Add(fn)) before method-style.
+		local ok, result = pcall(eventSource.Add, handler)
+		if ok then
+			local token = result
+			return function()
+				local removeArg = token ~= nil and token or handler
+				pcall(eventSource.Remove, removeArg)
+			end
+		end
+		ok, result = pcall(eventSource.Add, eventSource, handler)
+		if ok then
+			local token = result
+			return function()
+				local removeArg = token ~= nil and token or handler
+				pcall(eventSource.Remove, eventSource, removeArg)
+			end
+		end
+		return nil
+	end
+
+	if type(eventSource.addListener) == "function" and type(eventSource.removeListener) == "function" then
+		local ok, result = pcall(eventSource.addListener, eventSource, handler)
+		if ok then
+			local token = result
+			return function()
+				local removeArg = token ~= nil and token or handler
+				pcall(eventSource.removeListener, eventSource, removeArg)
+			end
+		end
+		ok, result = pcall(eventSource.addListener, handler)
+		if ok then
+			local token = result
+			return function()
+				local removeArg = token ~= nil and token or handler
+				pcall(eventSource.removeListener, removeArg)
+			end
+		end
+		return nil
+	end
+
+	return nil
 end
 
 ---@return PromiseKeeper.Util
