@@ -23,7 +23,7 @@ WorldObserver integration is optional and should come via adapters.
 ### Contract (plain words)
 
 You (the modder) provide:
-- a stable **promiseId** (a name for this promise),
+- a stable **promiseId** (a name for this promise, within your namespace),
 - the **action** (a function),
 - a **candidateStream** (high-quality and specific: it only emits candidates that already satisfy your gate; wired from LuaEvents/Starlit or from a WorldObserver adapter),
 - a **policy** (simple rules like once/N, chance, cooldown, retry delay, expiry),
@@ -34,6 +34,7 @@ PromiseKeeper provides:
 - It runs your action at the right time, and remembers what it already did across reloads so it won’t repeat unless you allow it.
 - It applies your simple policies (run once / N times, retry with delay, optional expiry).
 - It gives you a clear view of what’s pending vs done (and when possible, why).
+  - If a promise cannot be resumed (for example because a persisted definition references a missing situation), it is marked as broken with a clear reason.
 
 ---
 
@@ -158,7 +159,7 @@ Desired dependency direction:
 These should be answered early and documented as choices.
 Current status: decisions are mostly settled.
 
-- [x] **Catch-up semantics:** promises are future-based; PromiseKeeper does not scan and does not fulfill at registration time.
+- [x] **Catch-up semantics:** promises are future-based; PromiseKeeper does not scan and does not run actions at registration time.
   - Commentary: if catch-up/backfill is desired, the candidateStream provider must replay or re-emit candidates.
 - [x] **Ingress contract:** minimum candidateStream requirements are strict and simple.
   - Commentary: each candidate must include `fulfillmentId` and a non-nil `target`; otherwise PromiseKeeper warns and drops it.
@@ -175,20 +176,30 @@ Current status: decisions are mostly settled.
   - the item is older than 1 in-game day by default.
   - Modders can turn expiry off per promise, or change TTL.
 - [x] **Budgets:** decision (for now): no. PromiseKeeper stays simple and relies on upstream systems to keep candidate streams cost-bounded.
-- [x] **Reset/forget:** resetting progress is explicit via `PromiseKeeper.forget(promiseId)`; it never happens implicitly in `fulfill(...)`.
+- [x] **Reset/forget:** resetting progress is explicit via `forget(promiseId)` on the namespace handle; it never happens implicitly in `promise(...)`.
 
 ---
 
 ## 6) Public API (Proposed)
 
-New target API: a single universal primitive that consumes a candidate stream.
+PromiseKeeper is shared infrastructure: multiple mods may use it at the same time.
+To avoid cross-mod collisions in stored state, PromiseKeeper uses a namespaced API handle (no global “current namespace”).
 
-- `PromiseKeeper.fulfill(promiseId, candidateStream, action, policy)`
+- `PromiseKeeper.namespace(namespace)`
+  - Returns a namespaced PromiseKeeper handle. All calls on that handle store state under that namespace.
+  - In the API bullets below, we call that handle `pk`.
+
+- `pk.promise(promiseId, candidateStream, action, policy)`
   - This is the promise: “with this id, for these candidates, I will run this action, following this policy”.
   - `candidateStream` is high-quality and specific: it only emits candidates that are already acceptable for this promise.
-- `PromiseKeeper.forget(promiseId)`
-  - Explicitly forget progress for this promise id (opt-in reset). This is never implicit in `fulfill(...)`.
-- `getStatus(promiseId)` / `debugDump()` / `whyNot(promiseId, fulfillmentId)` (diagnostics)
+- `pk.forget(promiseId)`
+  - Explicitly forget progress for this promise id (opt-in reset). This is never implicit in `promise(...)`.
+- `pk.forgetAll()`
+  - Forget stored progress for all promises in this namespace.
+- `pk.listPromises()`
+  - List known promiseIds in this namespace.
+- `pk.getStatus(promiseId)` / `pk.debugDump()` / `pk.whyNot(promiseId, fulfillmentId)` (diagnostics)
+  - Diagnostics should surface stable “reason codes” (kept as a small list) so adapters can mark promises as broken in a consistent way.
 
 Notes:
 - v1 API names (`registerFulfiller`, `ensureAt`, `ensureMatchingForSquare`) are considered legacy and will be removed in v2 without compatibility or shims.
@@ -242,7 +253,7 @@ PromiseKeeper core should not import WO modules.
 ## 10) Milestones (Suggested)
 
 1) **Router split**: replace `square_events.lua` with `router.lua` + LuaEvents-driven ingress
-2) **Catch-up/backfill**: clarify “no sweeps” and “no live fulfillment at registration time”, and document adapter-driven backfill/replay
+2) **Catch-up/backfill**: clarify “no sweeps” and “no immediate action at registration time”, and document adapter-driven backfill/replay
 3) **Cleanup/expiry**: implement pruning + TTL
 4) **Policies**: run once/N, chance, cooldown, retry delay
 5) **Adapters**: WorldObserver adapter (and LuaEvents patterns)
@@ -251,7 +262,10 @@ PromiseKeeper core should not import WO modules.
 
 ## 11) Glossary
 
-- `promiseId`: Stable name for a promise (“the rule”), chosen by the modder.
+- `namespace`: A mod-chosen name that isolates PromiseKeeper state so multiple mods can use it without collisions.
+- `PromiseKeeper.namespace(namespace)`: Return a namespaced PromiseKeeper handle (no global state).
+- `pk`: A namespaced PromiseKeeper handle returned by `PromiseKeeper.namespace(namespace)`.
+- `promiseId`: Stable name for a promise (“the rule”), chosen by the modder within a namespace.
 - Promise: The contract “for candidates from `candidateStream`, run `action` according to `policy`”.
 - `candidateStream`: A stream/event source that emits candidates for a single promise. It should be high-quality and already filtered to match the gate.
 - Candidate: One emitted item that PromiseKeeper may act on.
@@ -259,5 +273,6 @@ PromiseKeeper core should not import WO modules.
 - `target`: The live, safe-to-mutate world object handed to the action.
 - `action`: The modder’s function that performs the side effect.
 - `policy`: Simple rules about “how” to run: once/N, chance, cooldown, retry delay, expiry.
-- `PromiseKeeper.forget(promiseId)`: Explicitly forget stored progress for a promise id.
+- `pk.promise(...)`: Register (or re-register) a promise in the namespace of `pk`.
+- `pk.forget(promiseId)`: Explicitly forget stored progress for a promise id in the namespace of `pk`.
 - Adapter: A bridge that turns some external stream (for example a WorldObserver Situation stream) into a PromiseKeeper candidateStream (often reshaping emissions via `map`).
