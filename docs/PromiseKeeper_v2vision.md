@@ -391,7 +391,7 @@ Convention:
 - Map WO situations into PromiseKeeper explicitly:
   - `pk.situationMaps.define("id", pk.adapters.worldobserver.mapFrom(wo.situations)("id", mapFn, opts))`
 - If the ids differ, just use different ids:
-  - `pk.situationMaps.define("factoryId", pk.adapters.worldobserver.mapFrom(wo.situations)("situationId", mapFn, opts))`
+  - `pk.situationMaps.define("factoryId", pk.adapters.worldobserver.mapFrom(wo.situations)("situationKey", mapFn, opts))`
 
 ---
 
@@ -535,7 +535,7 @@ end
 
 ```lua
 -- PromiseKeeper/adapters/worldobserver.lua (sketch)
-local base = situations.get(situationId, situationArgs)
+local base = situations.get(situationKey, situationArgs)
 local stream = base:asRx():map(mapSituationToCandidate)
 ```
 

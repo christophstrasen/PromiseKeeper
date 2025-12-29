@@ -15,11 +15,11 @@ function Smoke.start()
 
 	local namespace = "PKSmokeLuaEvent"
 	local pk = PromiseKeeper.namespace(namespace)
-	local situationId = "luaEventStream"
+	local situationKey = "luaEventStream"
 	local actionId = "logEvent"
 	local promiseId = "logLuaEventOnce"
 
-	pk.situationMaps.define(situationId, function()
+	pk.situationMaps.define(situationKey, function()
 		-- WHY: Starlit LuaEvent is an event emitter; PromiseKeeper wants a stable id + subject.
 		-- Here we treat the payload itself as the subject, and use `tostring(payload)` as a stable id.
 		-- It could be any better id extracted from the event too.
@@ -43,7 +43,7 @@ function Smoke.start()
 
 	local promise = pk.promise({
 		promiseId = promiseId,
-		situationMapId = situationId,
+		situationMapId = situationKey,
 		situationArgs = nil,
 		actionId = actionId,
 		actionArgs = { note = "hello" },

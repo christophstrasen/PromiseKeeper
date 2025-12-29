@@ -11,11 +11,11 @@ function Smoke.start()
 	local PromiseKeeper = require("PromiseKeeper")
 	local namespace = "PKSmokePZ"
 	local pk = PromiseKeeper.namespace(namespace)
-	local situationId = "onTickPlayer"
+	local situationKey = "onTickPlayer"
 	local actionId = "logPlayerTick"
 	local promiseId = "logPlayerTickOnce"
 
-	pk.situationMaps.define(situationId, function()
+	pk.situationMaps.define(situationKey, function()
 		-- WHY: PZ's built-in Events.* don't carry a stable "occurrence id" for idempotence,
 		-- And it is nice to prepare the subject for downstream actions
 		-- so we shape the event into `{ occurrenceId, subject }` ourselves.
@@ -39,7 +39,7 @@ function Smoke.start()
 
 	local promise = pk.promise({
 		promiseId = promiseId,
-		situationMapId = situationId,
+		situationMapId = situationKey,
 		situationArgs = nil, -- Events are rarely if ever parameterized.
 		actionId = actionId,
 		actionArgs = { note = "once" },

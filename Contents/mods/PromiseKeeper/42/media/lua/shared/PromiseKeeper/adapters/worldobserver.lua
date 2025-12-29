@@ -80,9 +80,9 @@ local function withInterest(stream, interestSpec, opts)
 	}
 end
 
-local function buildFactory(situations, situationId, mapSituationToCandidate, opts)
+local function buildFactory(situations, situationKey, mapSituationToCandidate, opts)
 	return function(args)
-		local base = situations.get(situationId, args)
+		local base = situations.get(situationKey, args)
 		assert(
 			type(base) == "table" and type(base.asRx) == "function",
 			"WorldObserver situation stream missing :asRx()"
@@ -104,8 +104,8 @@ if WOAdapter.mapFrom == nil then
 	---@param situations table
 	---@return function
 	function WOAdapter.mapFrom(situations)
-		return function(situationId, mapSituationToCandidate, opts)
-			return buildFactory(situations, situationId, mapSituationToCandidate, opts)
+		return function(situationKey, mapSituationToCandidate, opts)
+			return buildFactory(situations, situationKey, mapSituationToCandidate, opts)
 		end
 	end
 end
