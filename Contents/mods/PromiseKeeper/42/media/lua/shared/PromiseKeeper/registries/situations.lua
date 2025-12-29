@@ -44,7 +44,7 @@ if Situations.define == nil then
 		bucket[situationKey] = factoryFn
 
 		if existed then
-			U.log(LOG_TAG, "situation overwritten namespace=" .. namespace .. " id=" .. situationKey)
+			U.log(LOG_TAG, "situation overwritten namespace=" .. namespace .. " situationKey=" .. situationKey)
 		end
 	end
 end
