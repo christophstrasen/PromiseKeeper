@@ -66,7 +66,7 @@ describe("PromiseKeeper API", function()
 		local stream = makeStream()
 		local received = {}
 
-		pk.defineAction("act", function(subject, args, promiseCtx)
+		pk.actions.define("act", function(subject, args, promiseCtx)
 			received[#received + 1] = {
 				subject = subject,
 				note = args.note,
@@ -74,7 +74,7 @@ describe("PromiseKeeper API", function()
 			}
 		end)
 
-		pk.defineSituationFactory("stream", function()
+		pk.situationMaps.define("stream", function()
 			return stream
 		end)
 
@@ -87,5 +87,45 @@ describe("PromiseKeeper API", function()
 		assert.equals("square", received[1].subject)
 		assert.equals("ok", received[1].note)
 		assert.equals("p1", received[1].promiseId)
+	end)
+
+	it("accepts a spec table and returns a promise handle", function()
+		local pk = PromiseKeeper.namespace("tests")
+		local stream = makeStream()
+
+		pk.actions.define("act", function() end)
+		pk.situationMaps.define("stream", function()
+			return stream
+		end)
+
+		local promise = pk.promise({
+			promiseId = "p2",
+			situationFactoryId = "stream",
+			actionId = "act",
+			actionArgs = {},
+			policy = { maxRuns = 1, chance = 1 },
+		})
+
+		assert.equals("tests", promise.namespace)
+		assert.equals("p2", promise.promiseId)
+		assert.is_true(promise.started)
+		assert.is_function(promise.stop)
+		assert.is_function(promise.forget)
+		assert.is_function(promise.status)
+		assert.is_function(promise.whyNot)
+
+		assert.is_table(pk.factories)
+		assert.is_table(pk.adapters)
+		assert.is_table(pk.actions)
+		assert.is_table(pk.situationMaps)
+
+		assert.is_table(promise.status())
+
+		promise.stop()
+		assert.is_nil(stream.handler)
+
+		stream:emit({ occurrenceId = "o1", subject = "square" })
+		promise.forget()
+		assert.equals(0, promise.status().totalRuns)
 	end)
 end)

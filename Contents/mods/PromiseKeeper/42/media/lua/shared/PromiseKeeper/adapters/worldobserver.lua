@@ -80,31 +80,33 @@ local function withInterest(stream, interestSpec, opts)
 	}
 end
 
-if WOAdapter.defineSituationFactory == nil then
-	--- Define a PromiseKeeper situationFactoryId backed by a WorldObserver situation.
-	---@param pk table
+local function buildFactory(situations, situationId, mapSituationToCandidate, opts)
+	return function(args)
+		local base = situations.get(situationId, args)
+		assert(
+			type(base) == "table" and type(base.asRx) == "function",
+			"WorldObserver situation stream missing :asRx()"
+		)
+		-- We deliberately use WorldObserver's Rx bridge here (asRx + map) instead of re-implementing
+		-- mapping in PromiseKeeper core.
+		-- WHY: the adapter is where we can assume the WO + Rx dependency set, keeping the v2 core
+		-- usable with plain PZ events and LuaEvent sources without pulling in reactive plumbing.
+		local stream = base:asRx():map(mapSituationToCandidate)
+		if opts and opts.interest then
+			return withInterest(stream, opts.interest, opts)
+		end
+		return stream
+	end
+end
+
+if WOAdapter.mapFrom == nil then
+	--- Return a mapper for a WorldObserver situation namespace.
 	---@param situations table
-	---@param situationFactoryId string
-	---@param situationId string
-	---@param mapSituationToCandidate function
-	---@param opts table|nil
-	function WOAdapter.defineSituationFactory(pk, situations, situationFactoryId, situationId, mapSituationToCandidate, opts)
-		pk.defineSituationFactory(situationFactoryId, function(args)
-			local base = situations.get(situationId, args)
-			assert(
-				type(base) == "table" and type(base.asRx) == "function",
-				"WorldObserver situation stream missing :asRx()"
-			)
-			-- We deliberately use WorldObserver's Rx bridge here (asRx + map) instead of re-implementing
-			-- mapping in PromiseKeeper core.
-			-- WHY: the adapter is where we can assume the WO + Rx dependency set, keeping the v2 core
-			-- usable with plain PZ events and LuaEvent sources without pulling in reactive plumbing.
-			local stream = base:asRx():map(mapSituationToCandidate)
-			if opts and opts.interest then
-				return withInterest(stream, opts.interest, opts)
-			end
-			return stream
-		end)
+	---@return function
+	function WOAdapter.mapFrom(situations)
+		return function(situationId, mapSituationToCandidate, opts)
+			return buildFactory(situations, situationId, mapSituationToCandidate, opts)
+		end
 	end
 end
 

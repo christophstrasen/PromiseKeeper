@@ -1,4 +1,5 @@
 -- factories.lua -- small situationStream helpers.
+local U = require("PromiseKeeper/util")
 local PZEvents = require("PromiseKeeper/adapters/pz_events")
 local LuaEventAdapter = require("PromiseKeeper/adapters/luaevent")
 
@@ -45,6 +46,53 @@ if Factories.fromEvent == nil then
 			return Factories.fromLuaEvent(eventSource, mapEventToCandidate)
 		end
 		error("event source missing Add/Remove or addListener/removeListener", 2)
+	end
+end
+
+if Factories.isCandidate == nil then
+	--- Check whether a value looks like a PromiseKeeper candidate.
+	---@param value any
+	---@return boolean
+	function Factories.isCandidate(value)
+		return type(value) == "table" and value.occurrenceId ~= nil and value.subject ~= nil
+	end
+end
+
+if Factories.candidateOr == nil then
+	--- Wrap a mapper to accept already-shaped candidates as pass-through.
+	---@param mapEventToCandidate function
+	---@return function
+	function Factories.candidateOr(mapEventToCandidate)
+		U.assertf(type(mapEventToCandidate) == "function", "mapEventToCandidate must be a function")
+		return function(...)
+			local first = select(1, ...)
+			if Factories.isCandidate(first) then
+				return first
+			end
+			return mapEventToCandidate(...)
+		end
+	end
+end
+
+if Factories.makeCandidate == nil then
+	--- Build a mapper that returns `{ occurrenceId = ..., subject = ... }`.
+	---@param occurrenceIdFn function
+	---@param subjectFn function|nil Defaults to the first event argument.
+	---@return function
+	function Factories.makeCandidate(occurrenceIdFn, subjectFn)
+		U.assertf(type(occurrenceIdFn) == "function", "occurrenceIdFn must be a function")
+		if subjectFn == nil then
+			subjectFn = function(...)
+				return select(1, ...)
+			end
+		end
+		U.assertf(type(subjectFn) == "function", "subjectFn must be a function or nil")
+		return function(...)
+			return {
+				occurrenceId = occurrenceIdFn(...),
+				subject = subjectFn(...),
+			}
+		end
 	end
 end
 

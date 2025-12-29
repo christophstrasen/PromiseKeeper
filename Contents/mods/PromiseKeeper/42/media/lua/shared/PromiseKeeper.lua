@@ -38,7 +38,7 @@ local function normalizeArgs(args, name)
 	return args
 end
 
-local function normalizePolicy(policy)
+	local function normalizePolicy(policy)
 	if policy == nil then
 		policy = {}
 	end
@@ -101,69 +101,122 @@ local function normalizePolicy(policy)
 			ttlSeconds = tonumber(expiry.ttlSeconds) or (60 * 60 * 24),
 		},
 	}
-end
+	end
 
-if PromiseKeeper.namespace == nil then
-	--- Return a namespaced PromiseKeeper handle.
-	---@param namespace string
-	function PromiseKeeper.namespace(namespace)
-		assertNonEmptyString(namespace, "namespace")
-
-		local pk = {}
-
-		---@param actionId string
-		---@param actionFn function
-		function pk.defineAction(actionId, actionFn)
-			return Actions.define(namespace, actionId, actionFn)
+	local function normalizePromiseSpec(specOrPromiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)
+		if type(specOrPromiseId) == "table" then
+			return specOrPromiseId
 		end
+		return {
+			promiseId = specOrPromiseId,
+			situationFactoryId = situationFactoryId,
+			situationArgs = situationArgs,
+			actionId = actionId,
+			actionArgs = actionArgs,
+			policy = policy,
+		}
+	end
 
-		---@param actionId string
-		function pk.hasAction(actionId)
-			return Actions.has(namespace, actionId)
-		end
+	if PromiseKeeper.namespace == nil then
+		--- Return a namespaced PromiseKeeper handle.
+		---@param namespace string
+		function PromiseKeeper.namespace(namespace)
+			assertNonEmptyString(namespace, "namespace")
 
-		function pk.listActions()
-			return Actions.list(namespace)
-		end
+			local pk = {}
+			pk.adapters = PromiseKeeper.adapters
+			pk.factories = PromiseKeeper.factories
 
-		---@param situationFactoryId string
-		---@param buildSituationStreamFn function
-		function pk.defineSituationFactory(situationFactoryId, buildSituationStreamFn)
-			return Situations.define(namespace, situationFactoryId, buildSituationStreamFn)
-		end
-
-		---@param promiseId string
-		---@param situationFactoryId string
-		---@param situationArgs table|nil
-		---@param actionId string
-		---@param actionArgs table|nil
-		---@param policy table|nil
-		function pk.promise(promiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)
-			assertNonEmptyString(promiseId, "promiseId")
-			assertNonEmptyString(situationFactoryId, "situationFactoryId")
-			assertNonEmptyString(actionId, "actionId")
-
-			local def = {
-				situationFactoryId = situationFactoryId,
-				situationArgs = U.shallowCopy(normalizeArgs(situationArgs, "situationArgs")),
-				actionId = actionId,
-				actionArgs = U.shallowCopy(normalizeArgs(actionArgs, "actionArgs")),
-				policy = U.shallowCopy(normalizePolicy(policy)),
-			}
-
-			local existed = Store.getPromise(namespace, promiseId) ~= nil
-			Store.upsertDefinition(namespace, promiseId, def)
-			if existed then
-				logInfo(("promise overwritten namespace=%s promiseId=%s"):format(tostring(namespace), tostring(promiseId)))
+			pk.actions = {}
+			---@param actionId string
+			---@param actionFn function
+			function pk.actions.define(actionId, actionFn)
+				return Actions.define(namespace, actionId, actionFn)
 			end
 
-			Pacemaker.start()
-			local debugEnabled = type(_G.getDebug) == "function" and _G.getDebug() == true
-			return Router.startPromise(namespace, promiseId, { throwOnError = debugEnabled })
-		end
+			---@param actionId string
+			function pk.actions.has(actionId)
+				return Actions.has(namespace, actionId)
+			end
 
-		function pk.remember()
-			Pacemaker.start()
+			function pk.actions.list()
+				return Actions.list(namespace)
+			end
+
+			pk.situationMaps = {}
+			---@param situationFactoryId string
+			---@param buildSituationStreamFn function
+			function pk.situationMaps.define(situationFactoryId, buildSituationStreamFn)
+				return Situations.define(namespace, situationFactoryId, buildSituationStreamFn)
+			end
+
+			---@param situationFactoryId string
+			function pk.situationMaps.has(situationFactoryId)
+				return Situations.has(namespace, situationFactoryId)
+			end
+
+			function pk.situationMaps.list()
+				return Situations.list(namespace)
+			end
+
+			---@param promiseId string|table `promiseId` string, or a `spec` table (preferred).
+			---@param situationFactoryId string|nil
+			---@param situationArgs table|nil
+			---@param actionId string|nil
+			---@param actionArgs table|nil
+			---@param policy table|nil
+			function pk.promise(promiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)
+				local spec = normalizePromiseSpec(promiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)
+				U.assertf(type(spec) == "table", "promise spec must be a table")
+
+				assertNonEmptyString(spec.promiseId, "promiseId")
+				assertNonEmptyString(spec.situationFactoryId, "situationFactoryId")
+				assertNonEmptyString(spec.actionId, "actionId")
+
+				local def = {
+					situationFactoryId = spec.situationFactoryId,
+					situationArgs = U.shallowCopy(normalizeArgs(spec.situationArgs, "situationArgs")),
+					actionId = spec.actionId,
+					actionArgs = U.shallowCopy(normalizeArgs(spec.actionArgs, "actionArgs")),
+					policy = U.shallowCopy(normalizePolicy(spec.policy)),
+				}
+
+				local existed = Store.getPromise(namespace, spec.promiseId) ~= nil
+				Store.upsertDefinition(namespace, spec.promiseId, def)
+				if existed then
+					logInfo(("promise overwritten namespace=%s promiseId=%s"):format(tostring(namespace), tostring(spec.promiseId)))
+				end
+
+				Pacemaker.start()
+				local debugEnabled = type(_G.getDebug) == "function" and _G.getDebug() == true
+				local started = Router.startPromise(namespace, spec.promiseId, { throwOnError = debugEnabled })
+
+				-- Return a promise handle for ergonomic scripting (smokes, console, mod init).
+				-- WHY: a table handle reads better than passing `promiseId` strings around everywhere,
+				-- and gives us a clear spot to hang convenience helpers (stop/forget/status/whyNot).
+				local handle = {
+					namespace = namespace,
+					promiseId = spec.promiseId,
+					started = started,
+					stop = function()
+						Router.stopPromise(namespace, spec.promiseId)
+					end,
+					forget = function()
+						Router.forgetPromise(namespace, spec.promiseId)
+					end,
+					status = function()
+						return Status.getStatus(namespace, spec.promiseId)
+					end,
+					whyNot = function(occurrenceId)
+						return Status.whyNot(namespace, spec.promiseId, occurrenceId)
+					end,
+				}
+
+				return handle
+			end
+
+			function pk.remember()
+				Pacemaker.start()
 			local debugEnabled = type(_G.getDebug) == "function" and _G.getDebug() == true
 			return Router.startAll(namespace, { throwOnError = debugEnabled })
 		end

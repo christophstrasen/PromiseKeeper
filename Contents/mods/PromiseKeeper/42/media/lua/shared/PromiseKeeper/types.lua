@@ -42,10 +42,30 @@
 
 ---@alias PKSituationFactoryFn fun(args:table): PKSituationStream
 
+---@class PKPromiseSpec
+---@field promiseId string
+---@field situationFactoryId string
+---@field situationArgs table|nil
+---@field actionId string
+---@field actionArgs table|nil
+---@field policy PKPolicy|nil
+
+---@class PKPromiseHandle
+---@field namespace string
+---@field promiseId string
+---@field started boolean
+---@field stop fun() Stop the live subscription (does not delete persisted state).
+---@field forget fun() Reset persisted progress for this promise.
+---@field status fun(): table|nil Get persisted progress for this promise.
+---@field whyNot fun(occurrenceId:any): string|nil Get last whyNot reason for an occurrence.
+
 ---@class PKNamespaceHandle
----@field defineAction fun(self:PKNamespaceHandle, actionId:string, actionFn:PKActionFn)
----@field defineSituationFactory fun(self:PKNamespaceHandle, situationFactoryId:string, factoryFn:PKSituationFactoryFn)
----@field promise fun(self:PKNamespaceHandle, promiseId:string, situationFactoryId:string, situationArgs:table|nil, actionId:string, actionArgs:table|nil, policy:PKPolicy|nil)
+---@field adapters table Convenience reference to PromiseKeeper.adapters
+---@field factories table Convenience reference to PromiseKeeper.factories
+---@field actions table
+---@field situationMaps table
+---@field promise fun(self:PKNamespaceHandle, spec:PKPromiseSpec): PKPromiseHandle
+---@overload fun(self:PKNamespaceHandle, promiseId:string, situationFactoryId:string, situationArgs:table|nil, actionId:string, actionArgs:table|nil, policy:PKPolicy|nil): PKPromiseHandle
 ---@field remember fun(self:PKNamespaceHandle)
 ---@field rememberAll fun(self:PKNamespaceHandle)
 ---@field forget fun(self:PKNamespaceHandle, promiseId:string)
@@ -53,6 +73,16 @@
 ---@field listPromises fun(self:PKNamespaceHandle): table
 ---@field getStatus fun(self:PKNamespaceHandle, promiseId:string): table|nil
 ---@field whyNot fun(self:PKNamespaceHandle, promiseId:string, occurrenceId:any): string|nil
+
+---@class PKActionRegistry
+---@field define fun(actionId:string, actionFn:PKActionFn)
+---@field has fun(actionId:string): boolean
+---@field list fun(): table
+
+---@class PKSituationMapRegistry
+---@field define fun(situationFactoryId:string, factoryFn:PKSituationFactoryFn)
+---@field has fun(situationFactoryId:string): boolean
+---@field list fun(): table
 
 local Types = {}
 

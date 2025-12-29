@@ -281,27 +281,33 @@ To avoid cross-mod collisions in stored state, PromiseKeeper uses a namespaced A
   - In the API bullets below, we call that handle `pk`.
   - Naming guidance: prefer a fully-qualified namespace (usually your mod id). In the DREAM ecosystem (see glossary), a shared `DREAM.namespaces` helper can standardize namespace allocation across modules.
 
-- `pk.defineAction(actionId, actionFn)`
+- `pk.factories` / `pk.adapters`
+  - Convenience references to `PromiseKeeper.factories` and `PromiseKeeper.adapters` (so smokes and mod init code stay concise).
+
+- `pk.actions.define(actionId, actionFn)`
   - Register an action function under a stable id (required for resumable promises).
   - Note: the action function itself is not persisted; mods must register actions at startup so persisted promises can resume.
-  - Note: `actionArgs` are stored per promise definition (in `pk.promise(...)`), not in the registry.
+  - Note: `actionArgs` are stored per promise definition (in `pk.promise(spec)`), not in the registry.
   - Overwrite semantics: redefining the same `actionId` is allowed and logs at info level.
-- `pk.hasAction(actionId)`
+- `pk.actions.has(actionId)`
   - Return true/false depending on whether `actionId` is currently registered in this namespace.
   - Intention: allow mods (and PromiseKeeper diagnostics) to quickly detect missing registrations during boot and before declaring promises.
-- `pk.listActions()`
+- `pk.actions.list()`
   - List known actionIds registered in this namespace.
   - Intention: support debugging and “why is this promise broken?” tooling without requiring the modder to add extra plumbing.
-- `pk.defineSituationFactory(situationFactoryId, buildSituationStreamFn)`
-  - Register a situation stream factory under a stable id (required for resumable promises).
+- `pk.situationMaps.define(situationFactoryId, buildSituationStreamFn)`
+  - Register a situation mapping (factory) under a stable id (required for resumable promises).
   - The factory returns a live situationStream that PromiseKeeper can subscribe/unsubscribe to.
   - Overwrite semantics: redefining the same `situationFactoryId` is allowed and logs at info level.
-- `pk.promise(promiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)`
+- `pk.situationMaps.has(situationFactoryId)` / `pk.situationMaps.list()`
+  - Introspection for debugging and diagnostics.
+- `pk.promise(spec)` (preferred) / `pk.promise(promiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)` (legacy positional)
   - This is the promise: “with this id, for situation candidates from this factory, I will run this action, following this policy”.
-  - `situationArgs` may be nil (treated as `{}`).
-  - `actionArgs` may be nil (treated as `{}`).
+  - `spec` includes: `promiseId`, `situationFactoryId`, `situationArgs?`, `actionId`, `actionArgs?`, `policy?`.
+  - `situationArgs` and `actionArgs` may be nil (treated as `{}`).
   - The situationStream produced by the factory must be high-quality and specific: it only emits situation candidates that are already acceptable for this promise.
   - Re-register semantics: calling `promise(...)` again with the same `promiseId` updates the stored definition (factory/args/action/policy) without resetting progress; it logs at info level.
+  - Returns a `promise` handle with `started`, `stop()`, `forget()`, `status()`, and `whyNot(occurrenceId)`.
 - `pk.remember()`
   - (Re)start all persisted promises in this namespace by wiring their `situationFactoryId` + `situationArgs` and `actionId` + `actionArgs`.
   - Intention: called at game startup to restore PromiseKeeper’s “keeper” behavior after reload.
@@ -381,6 +387,12 @@ Adapter responsibilities:
 
 PromiseKeeper core should not import WO modules.
 
+Convention:
+- Map WO situations into PromiseKeeper explicitly:
+  - `pk.situationMaps.define("id", pk.adapters.worldobserver.mapFrom(wo.situations)("id", mapFn, opts))`
+- If the ids differ, just use different ids:
+  - `pk.situationMaps.define("factoryId", pk.adapters.worldobserver.mapFrom(wo.situations)("situationId", mapFn, opts))`
+
 ---
 
 ## 9) Testing Strategy (v2)
@@ -419,7 +431,7 @@ PromiseKeeper core should not import WO modules.
 - `subject`: The live, safe-to-mutate thing handed to the action.
 - `action`: The modder’s function that performs the side effect (looked up by `actionId`).
 - `policy`: Simple rules about “how” to run: once/N, chance, cooldown, retry delay, expiry.
-- `pk.promise(...)`: Register (or re-register) a promise in the namespace of `pk`.
+- `pk.promise(spec)`: Register (or re-register) a promise in the namespace of `pk` (and return a promise handle).
 - `pk.forget(promiseId)`: Explicitly forget stored progress for a promise id in the namespace of `pk`.
 - Adapter: A bridge that turns some external stream (for example a WorldObserver situation stream) into a PromiseKeeper situationStream (often reshaping emissions via `map`).
 
@@ -463,7 +475,7 @@ local PromiseKeeper = require("PromiseKeeper")
 local MOD_ID = "MyMod"
 local pk = PromiseKeeper.namespace(MOD_ID)
 
-pk.defineAction("logSquareLoaded", function(subject, args, promiseCtx)
+pk.actions.define("logSquareLoaded", function(subject, args, promiseCtx)
 	local x = subject:getX()
 	local y = subject:getY()
 	local z = subject:getZ()
@@ -476,26 +488,24 @@ pk.defineAction("logSquareLoaded", function(subject, args, promiseCtx)
 	))
 end)
 
-pk.defineSituationFactory("onSquareLoaded", function(_args)
-	return PromiseKeeper.factories.fromPZEvent(Events.LoadGridsquare, function(square)
+pk.situationMaps.define("onSquareLoaded", function(_args)
+local mapSquare = pk.factories.makeCandidate(function(square)
 		local x = square:getX()
 		local y = square:getY()
 		local z = square:getZ()
-		return {
-			occurrenceId = ("x%dy%dz%d"):format(x, y, z),
-			subject = square,
-		}
+		return ("x%dy%dz%d"):format(x, y, z)
 	end)
+	return pk.factories.fromPZEvent(Events.LoadGridsquare, mapSquare)
 end)
 
-pk.promise(
-	"logSquaresOnce",
-	"onSquareLoaded",
-	nil,
-	"logSquareLoaded",
-	{ note = "hello" },
-	{ maxRuns = 1, chance = 0.25 }
-)
+local promise = pk.promise({
+	promiseId = "logSquaresOnce",
+	situationFactoryId = "onSquareLoaded",
+	situationArgs = nil,
+	actionId = "logSquareLoaded",
+	actionArgs = { note = "hello" },
+	policy = { maxRuns = 1, chance = 0.25 },
+})
 
 pk.remember()
 ```
@@ -534,18 +544,21 @@ Example usage (a mod registering a situationFactoryId):
 ```lua
 local PromiseKeeper = require("PromiseKeeper")
 local WorldObserver = require("WorldObserver")
-local WOAdapter = require("PromiseKeeper/adapters/worldobserver")
 
 local MOD_ID = "MyMod"
 local pk = PromiseKeeper.namespace(MOD_ID)
-local situations = WorldObserver.situations.namespace(MOD_ID)
+local wo = {
+  situations = WorldObserver.situations.namespace(MOD_ID),
+}
+local mapWO = pk.adapters.worldobserver.mapFrom(wo.situations)
 
 -- Define the WorldObserver situation once (typically at load time).
-situations.define("nearSquares", function(_args)
+-- PromiseKeeper does not hide this step: WO remains the source of truth for situation definitions.
+wo.situations.define("nearSquares", function()
 	return WorldObserver.observations:squares()
 end)
 
-pk.defineAction("markSquare", function(subject, args, promiseCtx)
+pk.actions.define("markSquare", function(subject, args, promiseCtx)
 	print(("[PK] %s mark square tag=%s"):format(tostring(promiseCtx.occurrenceId), tostring(args.tag)))
 end)
 
@@ -557,15 +570,26 @@ local opts = {
 	},
 }
 
-WOAdapter.defineSituationFactory(pk, situations, "nearSquares", "nearSquares", function(observation)
-	local square = observation.square
-	return {
-		occurrenceId = square.squareId,
-		subject = square.IsoGridSquare,
-	}
-end, opts)
+pk.situationMaps.define("nearSquares", mapWO(
+  "nearSquares",
+  function(observation)
+    local square = observation.square
+    return {
+      occurrenceId = square.squareId,
+      subject = square.IsoGridSquare,
+    }
+  end,
+  opts
+))
 
-pk.promise("markNearSquares", "nearSquares", nil, "markSquare", { tag = "seen" }, { maxRuns = 1, chance = 1 })
+pk.promise({
+	promiseId = "markNearSquares",
+	situationFactoryId = "nearSquares",
+	situationArgs = nil,
+	actionId = "markSquare",
+	actionArgs = { tag = "seen" },
+	policy = { maxRuns = 1, chance = 1 },
+})
 
 pk.remember()
 ```
@@ -636,7 +660,7 @@ Remove or retire as legacy (v1-specific, square-first):
 ### B) New module layout (v2)
 
 Public API:
-- `external/PromiseKeeper/Contents/mods/SceneBuilder/42/media/lua/shared/PromiseKeeper.lua`
+- `external/PromiseKeeper/Contents/mods/PromiseKeeper/42/media/lua/shared/PromiseKeeper.lua`
   - Implements `PromiseKeeper.namespace`, `pk.promise`, `pk.remember`, `pk.forget`, etc.
 
 Core:
@@ -660,7 +684,7 @@ Adapters / factories:
 - `PromiseKeeper/factories.lua` (fromPZEvent, fromLuaEvent)
 - `PromiseKeeper/adapters/pz_events.lua` (PZ `Events.*` streams)
 - `PromiseKeeper/adapters/luaevent.lua` (Starlit `LuaEvent` streams)
-- `PromiseKeeper/adapters/worldobserver.lua` (defineSituationFactory helper + optional interest lifecycle)
+- `PromiseKeeper/adapters/worldobserver.lua` (mapFrom helper + optional interest lifecycle)
 
 Debug:
 - `PromiseKeeper/debug/status.lua` (reason codes, `getStatus`, `debugDump`, `whyNot`)
@@ -694,7 +718,7 @@ Suggested unit coverage:
 ### E) Smoke tests (runtime)
 
 Three smoke scripts under:
-- `external/PromiseKeeper/Contents/mods/SceneBuilder/42/media/lua/shared/examples/`
+- `external/PromiseKeeper/Contents/mods/PromiseKeeper/42/media/lua/shared/examples/`
 
 1) **PZ Events smoke** (`smoke_pk_pz_events.lua`)
    - Use `Events.OnTick` or `Events.LoadGridsquare` with `Factories.fromEvent`
@@ -706,7 +730,7 @@ Three smoke scripts under:
 
 3) **WorldObserver smoke** (`smoke_pk_worldobserver.lua`)
    - Define a simple WO situation (e.g. `nearSquares`)
-   - Use `WOAdapter.defineSituationFactory` + `opts.interest`
+   - Use `WOAdapter.mapFrom(...)` + `opts.interest`, then pass the returned factory into `pk.situationMaps.define(...)`
    - Confirm a promise fires and logs.
 
 ### F) Open questions to resolve during planning
