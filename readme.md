@@ -14,16 +14,16 @@ PromiseKeeper is for modders who:
 ## When to use it (and when not)
 
 Use PromiseKeeper when you need:
-- “run this action once per <player/square/zombie/...>, even after reload”,
-- a small policy surface (max runs, deterministic chance, cooldown, retry delay),
+- “run this action once per <player/square/zombie/...>, even after reload”.
+- a small policy surface (max runs, deterministic chance, cooldown, retry delay).
 - to pair **WorldObserver** (sensing) with persisted actions.
 
-Don’t use it when you need:
+Don’t use it when:
 - Your logic is purely local and ephemeral (no persistence needed; a direct event handler is enough).
-- You don't like "framework-y" or declarative coding conventions
-- You need tested multiplayer guarantees
+- You don't like "framework-y" or declarative coding conventions.
+- You need tested multiplayer guarantees.
 
-## Quickstar
+## Quickstart
 
 Copy/paste into the Project Zomboid debug console (in-game):
 
