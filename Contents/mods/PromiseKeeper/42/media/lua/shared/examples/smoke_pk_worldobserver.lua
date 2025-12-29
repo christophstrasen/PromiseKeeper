@@ -24,19 +24,14 @@ function Smoke.start()
 	local PromiseKeeper = require("PromiseKeeper")
 	local WorldObserver = require("WorldObserver")
 
-	-- One-off explicit interest for squares so WO has something to observe.
-	local interest = WorldObserver.factInterest:declare(
-		"examples/smoke_pk_worldobserver",
-		"near",
-		INTEREST_NEAR,
-		LEASE_OPTS
-	)
-
 	local namespace = "PKSmokeWO"
+	local wo = WorldObserver.namespace(namespace)
+	-- One-off explicit interest for squares so WO has something to observe.
+	local interest = wo.factInterest:declare("near", INTEREST_NEAR, LEASE_OPTS)
 	-- PromiseKeeper state is namespaced so multiple mods can use it without collisions.
 	local pk = PromiseKeeper.namespace(namespace)
 	-- Convention: use the same namespace for WorldObserver situations and PromiseKeeper promises.
-	local situations = WorldObserver.situations.namespace(namespace)
+	local situations = wo.situations
 	-- One-time bridge: PromiseKeeper can search WorldObserver situations by situationKey.
 	pk.situations.searchIn(WorldObserver)
 
