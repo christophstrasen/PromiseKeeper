@@ -1,8 +1,8 @@
 # PromiseKeeper
 
-> When situations happen, run my action (once/N, with chance/cooldown/retry) and remember across reloads.
+“A convenience‑focused, declarative modding library for **Project Zomboid (Build 42) SP** that ties situations to actions via persisted promises. It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.”
 
-“PromiseKeeper is a convenience‑focused, declarative modding library for **Project Zomboid (Build 42) SP** that ties situations to actions via persisted promises. It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.”
+[![CI](https://github.com/christophstrasen/PromiseKeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/christophstrasen/PromiseKeeper/actions/workflows/ci.yml)
 
 ## Who is this for?
 
