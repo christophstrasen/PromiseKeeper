@@ -1,5 +1,12 @@
 Document date: 2025-03-01
 
+# Archived: PromiseKeeper v1 deferred fulfilment (square-first)
+
+> Historical document from the pre‑WorldObserver era. The current direction is v2.x; see:
+> - `docs_internal/vision.md`
+> - `docs_internal/architecture.md`
+> - `docs_internal/api.md`
+
 # PromiseKeeper — Deferred Fulfilment System (v1, square-first)
 
 PromiseKeeper lets modders declare “promises” of world changes that should occur later, once the relevant world elements (squares, rooms, vehicles in the future) are safe to mutate. Version 1 focuses on Build 42 square/room fulfilment and integrates with the external **WorldScanner** module for candidate discovery.

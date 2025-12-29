@@ -1,3 +1,7 @@
+-- Archived snippet (historical).
+-- This predates the PromiseKeeper v2.1 doc cleanup. The current canonical API overview lives in:
+-- - docs_internal/api.md
+
 local PromiseKeeper = require("PromiseKeeper")
 local WorldObserver = require("WorldObserver")
 

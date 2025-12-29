@@ -1,3 +1,7 @@
+# Archived: AI feedback snapshot (historical)
+
+> This is a historical feedback snapshot. The current API/doc state may differ; treat this as input, not truth.
+
 # From a clean-room analysis (AI that was never involved in building)
 
 If I’m a **mid-level Project Zomboid Lua modder** and I open the three smoke test files for the first time, my reaction is basically:

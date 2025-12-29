@@ -1,3 +1,7 @@
+# Archived: PromiseKeeper v2.1 refactor plan (hard cut)
+
+> Historical planning notes. v2.1 is now implemented.
+
 # PromiseKeeper v2.1 Refactor Plan (hard cut)
 
 Goal: remove the WO mapping layer, treat WorldObserver situations as already actionable, and keep event-based situations explicit. No compatibility shims.
@@ -57,8 +61,8 @@ Add the following API on the namespaced `pk` handle:
   - `smoke_pk_worldobserver.lua` should use only `pk.situations.searchIn(...)` and `pk.promise{ situationKey = ... }`.
   - `smoke_pk_luaevent.lua` and `smoke_pk_pz_events.lua` should use `pk.situations.defineFromLuaEvent` / `defineFromPZEvent`.
 - Docs:
-  - `external/PromiseKeeper/docs/PromiseKeeper_v2vision.md` (rename fields + clarify WO path)
-  - `external/PromiseKeeper/docs/example.lua` (align with new API)
+  - `docs_internal/vision.md`, `docs_internal/architecture.md`, `docs_internal/api.md`
+  - `docs_internal/drafts/example.lua` (old snippet)
 
 ## 8) Tests
 - Update existing unit tests to new API names.

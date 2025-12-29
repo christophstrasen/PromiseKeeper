@@ -63,7 +63,7 @@ describe("PromiseKeeper store", function()
 	end)
 
 	it("drops legacy situationMapId definitions", function()
-		local root = _G.ModData.getOrCreate("PromiseKeeperV2")
+		local root = _G.ModData.getOrCreate("PromiseKeeper")
 		root.namespaces = {
 			ns = {
 				promises = {

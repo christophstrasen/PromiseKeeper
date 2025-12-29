@@ -1,12 +1,20 @@
 Document date: 2025-12-27
 
+# Archived: PromiseKeeper v2 vision draft (superseded)
+
+> This document contains design exploration, draft API, and implementation planning.
+> The current “clean” docs are:
+> - `docs_internal/vision.md`
+> - `docs_internal/architecture.md`
+> - `docs_internal/api.md`
+
 # PromiseKeeper — v2 Vision (Outline)
 
 This document is an outline for PromiseKeeper v2: a durable, idempotent action scheduler for Project Zomboid mods.
 It is intentionally short and decision-oriented. It is not a full spec.
 
 Related:
-- v1 intent: `external/PromiseKeeper/docs/PromiseKeeper_deferred_spawning_system.md`
+- v1 intent: `docs_internal/drafts/PromiseKeeper_deferred_spawning_system.md`
 
 ---
 

@@ -19,7 +19,7 @@ end
 Store._internal = Store._internal or {}
 Store._internal.warnedLegacy = Store._internal.warnedLegacy or {}
 
-local ROOT_KEY = "PromiseKeeperV2"
+local ROOT_KEY = "PromiseKeeper"
 local root
 
 local function nowMs()
