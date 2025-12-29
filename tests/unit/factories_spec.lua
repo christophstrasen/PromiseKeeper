@@ -20,12 +20,12 @@ describe("PromiseKeeper factories", function()
 		Factories = reload("PromiseKeeper/factories")
 	end)
 
-	it("builds {occurrenceId, subject} mappers via makeCandidate", function()
+	it("builds {occurranceKey, subject} mappers via makeCandidate", function()
 		local map = Factories.makeCandidate(function(payload)
 			return "id:" .. tostring(payload)
 		end)
 		local candidate = map("hello")
-		assert.equals("id:hello", candidate.occurrenceId)
+		assert.equals("id:hello", candidate.occurranceKey)
 		assert.equals("hello", candidate.subject)
 	end)
 
@@ -33,15 +33,15 @@ describe("PromiseKeeper factories", function()
 		local called = 0
 		local map = Factories.candidateOr(function(payload)
 			called = called + 1
-			return { occurrenceId = "id:" .. tostring(payload), subject = payload }
+			return { occurranceKey = "id:" .. tostring(payload), subject = payload }
 		end)
 
-		local pass = { occurrenceId = "o1", subject = "square" }
+		local pass = { occurranceKey = "o1", subject = "square" }
 		assert.equals(pass, map(pass))
 		assert.equals(0, called)
 
 		local out = map("x")
-		assert.equals("id:x", out.occurrenceId)
+		assert.equals("id:x", out.occurranceKey)
 		assert.equals(1, called)
 	end)
 end)

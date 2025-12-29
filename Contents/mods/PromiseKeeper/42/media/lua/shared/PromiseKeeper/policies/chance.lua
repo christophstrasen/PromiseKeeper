@@ -1,10 +1,10 @@
--- policies/chance.lua -- deterministic chance per occurrenceId.
+-- policies/chance.lua -- deterministic chance per occurranceKey.
 local U = require("PromiseKeeper/util")
 local M = {}
 
 local MODULUS = 4294967296 -- 2^32
 
-function M.shouldRun(namespace, promiseId, occurrenceId, policy)
+function M.shouldRun(namespace, promiseId, occurranceKey, policy)
 	local chance = tonumber(policy and policy.chance)
 	if chance == nil then
 		chance = 1
@@ -15,7 +15,7 @@ function M.shouldRun(namespace, promiseId, occurrenceId, policy)
 	if chance <= 0 then
 		return false, "policy_skip_chance"
 	end
-	local key = U.buildKey(namespace, promiseId, occurrenceId)
+	local key = U.buildKey(namespace, promiseId, occurranceKey)
 	local h = U.hash32(key)
 	local roll = h / MODULUS
 	if roll < chance then

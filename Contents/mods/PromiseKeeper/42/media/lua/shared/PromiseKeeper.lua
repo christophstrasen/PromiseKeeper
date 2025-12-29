@@ -103,13 +103,13 @@ end
 	}
 	end
 
-	local function normalizePromiseSpec(specOrPromiseId, situationMapId, situationArgs, actionId, actionArgs, policy)
+	local function normalizePromiseSpec(specOrPromiseId, situationKey, situationArgs, actionId, actionArgs, policy)
 		if type(specOrPromiseId) == "table" then
 			return specOrPromiseId
 		end
 		return {
 			promiseId = specOrPromiseId,
-			situationMapId = situationMapId,
+			situationKey = situationKey,
 			situationArgs = situationArgs,
 			actionId = actionId,
 			actionArgs = actionArgs,
@@ -143,38 +143,65 @@ end
 				return Actions.list(namespace)
 			end
 
-			pk.situationMaps = {}
-			---@param situationMapId string
+			pk.situations = {}
+			---@param situationKey string
 			---@param buildSituationStreamFn function
-			function pk.situationMaps.define(situationMapId, buildSituationStreamFn)
-				return Situations.define(namespace, situationMapId, buildSituationStreamFn)
+			function pk.situations.define(situationKey, buildSituationStreamFn)
+				return Situations.define(namespace, situationKey, buildSituationStreamFn)
 			end
 
-			---@param situationMapId string
-			function pk.situationMaps.has(situationMapId)
-				return Situations.has(namespace, situationMapId)
+			---@param situationKey string
+			---@param eventSource table
+			---@param mapEventToCandidate function
+			function pk.situations.defineFromPZEvent(situationKey, eventSource, mapEventToCandidate)
+				return Situations.define(namespace, situationKey, function(args)
+					return Factories.fromPZEvent(eventSource, function(...)
+						return mapEventToCandidate(args or {}, ...)
+					end)
+				end)
 			end
 
-			function pk.situationMaps.list()
+			---@param situationKey string
+			---@param eventSource table
+			---@param mapEventToCandidate function
+			function pk.situations.defineFromLuaEvent(situationKey, eventSource, mapEventToCandidate)
+				return Situations.define(namespace, situationKey, function(args)
+					return Factories.fromLuaEvent(eventSource, function(...)
+						return mapEventToCandidate(args or {}, ...)
+					end)
+				end)
+			end
+
+			---@param registry table
+			function pk.situations.searchIn(registry)
+				return Situations.searchIn(namespace, registry)
+			end
+
+			---@param situationKey string
+			function pk.situations.has(situationKey)
+				return Situations.has(namespace, situationKey)
+			end
+
+			function pk.situations.list()
 				return Situations.list(namespace)
 			end
 
 			---@param promiseId string|table `promiseId` string, or a `spec` table (preferred).
-			---@param situationMapId string|nil
+			---@param situationKey string|nil
 			---@param situationArgs table|nil
 			---@param actionId string|nil
 			---@param actionArgs table|nil
 			---@param policy table|nil
-			function pk.promise(promiseId, situationMapId, situationArgs, actionId, actionArgs, policy)
-				local spec = normalizePromiseSpec(promiseId, situationMapId, situationArgs, actionId, actionArgs, policy)
+			function pk.promise(promiseId, situationKey, situationArgs, actionId, actionArgs, policy)
+				local spec = normalizePromiseSpec(promiseId, situationKey, situationArgs, actionId, actionArgs, policy)
 				U.assertf(type(spec) == "table", "promise spec must be a table")
 
 				assertNonEmptyString(spec.promiseId, "promiseId")
-				assertNonEmptyString(spec.situationMapId, "situationMapId")
+				assertNonEmptyString(spec.situationKey, "situationKey")
 				assertNonEmptyString(spec.actionId, "actionId")
 
 				local def = {
-					situationMapId = spec.situationMapId,
+					situationKey = spec.situationKey,
 					situationArgs = U.shallowCopy(normalizeArgs(spec.situationArgs, "situationArgs")),
 					actionId = spec.actionId,
 					actionArgs = U.shallowCopy(normalizeArgs(spec.actionArgs, "actionArgs")),
@@ -207,8 +234,8 @@ end
 					status = function()
 						return Status.getStatus(namespace, spec.promiseId)
 					end,
-					whyNot = function(occurrenceId)
-						return Status.whyNot(namespace, spec.promiseId, occurrenceId)
+					whyNot = function(occurranceKey)
+						return Status.whyNot(namespace, spec.promiseId, occurranceKey)
 					end,
 				}
 
@@ -252,10 +279,10 @@ end
 		end
 
 		---@param promiseId string
-		---@param occurrenceId string
-		function pk.whyNot(promiseId, occurrenceId)
+		---@param occurranceKey string
+		function pk.whyNot(promiseId, occurranceKey)
 			assertNonEmptyString(promiseId, "promiseId")
-			return Status.whyNot(namespace, promiseId, occurrenceId)
+			return Status.whyNot(namespace, promiseId, occurranceKey)
 		end
 
 		return pk

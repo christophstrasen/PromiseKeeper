@@ -54,7 +54,7 @@ if Factories.isCandidate == nil then
 	---@param value any
 	---@return boolean
 	function Factories.isCandidate(value)
-		return type(value) == "table" and value.occurrenceId ~= nil and value.subject ~= nil
+		return type(value) == "table" and value.occurranceKey ~= nil and value.subject ~= nil
 	end
 end
 
@@ -75,12 +75,12 @@ if Factories.candidateOr == nil then
 end
 
 if Factories.makeCandidate == nil then
-	--- Build a mapper that returns `{ occurrenceId = ..., subject = ... }`.
-	---@param occurrenceIdFn function
+	--- Build a mapper that returns `{ occurranceKey = ..., subject = ... }`.
+	---@param occurranceKeyFn function
 	---@param subjectFn function|nil Defaults to the first event argument.
 	---@return function
-	function Factories.makeCandidate(occurrenceIdFn, subjectFn)
-		U.assertf(type(occurrenceIdFn) == "function", "occurrenceIdFn must be a function")
+	function Factories.makeCandidate(occurranceKeyFn, subjectFn)
+		U.assertf(type(occurranceKeyFn) == "function", "occurranceKeyFn must be a function")
 		if subjectFn == nil then
 			subjectFn = function(...)
 				return select(1, ...)
@@ -89,7 +89,7 @@ if Factories.makeCandidate == nil then
 		U.assertf(type(subjectFn) == "function", "subjectFn must be a function or nil")
 		return function(...)
 			return {
-				occurrenceId = occurrenceIdFn(...),
+				occurranceKey = occurranceKeyFn(...),
 				subject = subjectFn(...),
 			}
 		end

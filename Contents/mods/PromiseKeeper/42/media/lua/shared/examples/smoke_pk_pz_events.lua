@@ -15,32 +15,34 @@ function Smoke.start()
 	local actionId = "logPlayerTick"
 	local promiseId = "logPlayerTickOnce"
 
-	pk.situationMaps.define(situationKey, function()
-		-- WHY: PZ's built-in Events.* don't carry a stable "occurrence id" for idempotence,
-		-- And it is nice to prepare the subject for downstream actions
-		-- so we shape the event into `{ occurrenceId, subject }` ourselves.
-		return pk.factories.fromPZEvent(Events.OnTick, function()
-			return {
-				occurrenceId = "player:" .. tostring(getPlayer():getPlayerNum()),
-				subject = getPlayer(),
-			}
-		end)
+	-- WHY: PZ's built-in Events.* don't carry a stable occurranceKey for idempotence,
+	-- so we shape the event into `{ occurranceKey, subject }` ourselves.
+	pk.situations.defineFromPZEvent(situationKey, Events.OnTick, function(args)
+		local player = getPlayer()
+		if not player then
+			return nil
+		end
+		return {
+			occurranceKey = tostring(args.keyPrefix or "player:")
+				.. tostring(player:getPlayerNum() or 0),
+			subject = player,
+		}
 	end)
 
 	pk.actions.define(actionId, function(subject, args, promiseCtx)
 		print(
-			("[PK] tick subject=%s note=%s occurrenceId=%s"):format(
+			("[PK] tick subject=%s note=%s occurranceKey=%s"):format(
 				tostring(subject),
 				tostring(args.note),
-				tostring(promiseCtx.occurrenceId)
+				tostring(promiseCtx.occurranceKey)
 			)
 		)
 	end)
 
 	local promise = pk.promise({
 		promiseId = promiseId,
-		situationMapId = situationKey,
-		situationArgs = nil, -- Events are rarely if ever parameterized.
+		situationKey = situationKey,
+		situationArgs = { keyPrefix = "player:" },
 		actionId = actionId,
 		actionArgs = { note = "once" },
 		policy = { maxRuns = 1, chance = 1 },

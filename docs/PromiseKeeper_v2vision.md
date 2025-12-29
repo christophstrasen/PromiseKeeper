@@ -24,9 +24,9 @@ WorldObserver integration is optional and should come via adapters.
 You (the modder) provide:
 - a stable **promiseId** (a name for this promise, within your namespace),
 - an **actionId** + optional `actionArgs` (registered at startup to a function, so PromiseKeeper can resume after reload),
-- a **situationMapId** + optional `situationArgs` (registered at startup to rebuild the situationStream on demand),
+- a **situationKey** + optional `situationArgs` (registered at startup to rebuild the situationStream on demand),
 - a **policy** (simple rules like once/N, chance, cooldown, retry delay, expiry),
-- an actionable **situation candidate** shape your action can run with: each emitted situation candidate includes a stable **occurrenceId** (so PromiseKeeper can remember it across reloads) and a **subject** that is (or contains) the live, safe-to-mutate thing you want to act on; if your situationStream is not in that shape yet, you reshape it in the situation map (for example with `map`) or have to make it ready in your action.
+- an actionable **situation candidate** shape your action can run with: each emitted situation candidate includes a stable **occurranceKey** (so PromiseKeeper can remember it across reloads) and a **subject** that is (or contains) the live, safe-to-mutate thing you want to act on; if your situationStream is not in that shape yet (common with raw events), you reshape it in the situation definition or make it ready in your action.
 
 PromiseKeeper provides:
 - It tells you exactly what it found and where, and hands you the live, safe-to-mutate subject.
@@ -34,7 +34,7 @@ PromiseKeeper provides:
 - It applies your simple policies (run once / N times, retry with delay, optional expiry).
 - It makes no promise that every situation candidate emission will be acted upon: readiness + policy can still cause drops/skips.
 - It gives you a clear view of what’s pending vs done (and when possible, why).
-  - If a promise cannot be resumed (for example because a persisted definition references a missing `situationMapId` or `actionId`), it is marked as broken with a clear reason.
+  - If a promise cannot be resumed (for example because a persisted definition references a missing `situationKey` or `actionId`), it is marked as broken with a clear reason.
 
 ---
 
@@ -64,11 +64,11 @@ The promise is the contract:
 
 ### Situation Stream
 
-A stream (or event source) produced by a registered situation map, emitting situation candidates for a single promise.
+A stream (or event source) produced by a registered situation definition, emitting situation candidates for a single promise.
 It should be high-quality and specific (already filtered to “only things that match and may be acted upon”).
 
 Situation streams are not persisted (they are live runtime objects).
-Only the *reference* to rebuild them is persisted (`situationMapId` + `situationArgs`).
+Only the *reference* to rebuild them is persisted (`situationKey` + `situationArgs`).
 
 PromiseKeeper should support these situationStream shapes (explicit adapters are preferred):
 
@@ -90,7 +90,7 @@ PromiseKeeper should support these situationStream shapes (explicit adapters are
 
 One item emitted by a situationStream.
 It is an actionable “situation instance” that PromiseKeeper may attempt to act on.
-It must carry a stable `occurrenceId` (so PromiseKeeper can “check it off”), and the (ideally mutatable) `subject` handed to the action.
+It must carry a stable `occurranceKey` (so PromiseKeeper can “check it off”), and the (ideally mutatable) `subject` handed to the action.
 
 ### Gate
 
@@ -108,7 +108,7 @@ PromiseKeeper should avoid making “game logic” decisions (like distances, co
 
 PromiseKeeper policies are intentionally simple and non-game-logicy: they should not encode knowledge about Project Zomboid world objects. The simple shapes for this v2 are:
 - run count (“only once” / “up to N times”)
-- chance (“only sometimes”, deterministically per `occurrenceId`, no re-rolling)
+- chance (“only sometimes”, deterministically per `occurranceKey`, no re-rolling)
 - cooldown (“not too often”, scoped per `promiseId`)
 - retry (max retries + delay, driven by an internal pacemaker)
 - expiry (optional pruning)
@@ -121,7 +121,7 @@ policy = {
 	-- Default: 1.
 	maxRuns = 1,
 
-	-- Chance threshold in [0, 1]. Deterministic per occurrenceId (no re-rolling).
+	-- Chance threshold in [0, 1]. Deterministic per occurranceKey (no re-rolling).
 	-- Default: 1.
 	chance = 1,
 
@@ -147,15 +147,15 @@ Time base (v2):
 - For cooldowns, retry delays, and “next retry due”, PromiseKeeper uses the same game-time millis function shape as WorldObserver (`getGameTime():getTimeCalendar():getTimeInMillis()`), but implemented locally (no WorldObserver dependency).
 
 Chance semantics (v2):
-- Chance is evaluated once per `occurrenceId` (no re-rolling on duplicate emissions).
-- Preferred: derive a deterministic roll from a stable hash of `namespace + promiseId + occurrenceId` and compare it to the chance threshold.
+- Chance is evaluated once per `occurranceKey` (no re-rolling on duplicate emissions).
+- Preferred: derive a deterministic roll from a stable hash of `namespace + promiseId + occurranceKey` and compare it to the chance threshold.
   - This avoids extra persistence while keeping behavior stable across reloads.
   - If the chance threshold changes later, the roll stays the same; only the threshold changes.
   - Suggested hash for Lua 5.1 / Kahlua: a simple 32-bit rolling hash (e.g. djb2-style) implemented with `string.byte`, `math.fmod`, and a 32-bit modulus, then `roll = hash / 2^32`.
 
 Policy persistence constraint (v2):
 - Policies must be represented as plain tables with scalar values (strings/numbers/booleans) and other plain tables.
-- No functions and no userdata; if you need complex logic, put it into your action or your situation map and keep policy as simple parameters.
+- No functions and no userdata; if you need complex logic, put it into your action or your situation definition and keep policy as simple parameters.
 
 ### Action
 
@@ -178,14 +178,14 @@ The promise context should answer:
 
 1) **What can I safely mutate right now?** (the live subject, “it’s there”)
 2) **Why am I being called?** (what upstream condition made this situation candidate appear, “it’s now”)
-3) **What is the stable identity?** (the `promiseId` + `occurrenceId` that make “only once” meaningful across reloads)
+3) **What is the stable identity?** (the `promiseId` + `occurranceKey` that make “only once” meaningful across reloads)
 4) **What helpful extra context is available?** (optional convenience handles like player/coords, as available)
 
 Promise context fields (v2 minimum):
 - `promiseId`
-- `occurrenceId`
+- `occurranceKey`
 - `actionId`
-- `situationMapId`
+- `situationKey`
 - `retryCounter`
 - `policy` (the full policy table)
 
@@ -222,15 +222,15 @@ Split PromiseKeeper into “core” and “ingress/adapters”.
 - `router.lua` (evaluation engine)
 - `policies/*.lua` (policies: run once/N, chance, cooldown, retry, expiry)
 - `actions_registry.lua` (actionId → actionFn)
-- `situations_registry.lua` (situationMapId → buildSituationStreamFn)
+- `situations_registry.lua` (situationKey → buildSituationStreamFn)
 - `time.lua` (game-time millis helper; same shape as WorldObserver but implemented locally)
 - `debug/*.lua` (introspection / dumps / reasons)
 
 **Ingress/adapters:**
 - PromiseKeeper consumes situation streams wired via **PZ Events** or **LuaEvent/Starlit** sources.
-- `adapters/worldobserver.lua` (first-class optional ingest): WorldObserver can publish via LuaEvent or call PromiseKeeper directly.
+- WorldObserver integration uses the search bridge (`pk.situations.searchIn(WorldObserver)`), which wraps WO situation streams into candidates based on `WoMeta.occurranceKey`.
   - Why this is good: adapters can offer subscribe/unsubscribe, so PromiseKeeper can stop fulfilling when a promise is complete, expires, or is manually stopped.
-  - Adapters also provide a natural place to reshape situation emissions into actionable situation candidates (for example with `:map(...)`).
+  - For event sources, adapters provide the place to reshape emissions into `{ occurranceKey, subject }`.
 
 Desired dependency direction:
 `ingress/adapters` → `router` → `store`
@@ -245,20 +245,20 @@ Current status: decisions are mostly settled.
 - [x] **Catch-up semantics:** promises are future-based; PromiseKeeper does not scan and does not run actions at registration time.
   - Commentary: if catch-up/backfill is desired, the situationStream provider must replay or re-emit situation candidates.
 	- [x] **Ingress contract:** minimum situationStream requirements are strict and simple.
-	  - Commentary: each situation candidate must include `occurrenceId` and a non-nil `subject`; otherwise PromiseKeeper warns and drops it.
-	  - Commentary: duplicates are expected; idempotence handles them (default is “only once per occurrenceId”).
+	  - Commentary: each situation candidate must include `occurranceKey` and a non-nil `subject`; otherwise PromiseKeeper warns and drops it.
+	  - Commentary: duplicates are expected; idempotence handles them (default is “only once per occurranceKey”).
   - Commentary: situationStream must support unsubscribe; for `Add/Remove` sources, PromiseKeeper removes its handler to unsubscribe; LuaEvent uses `addListener/removeListener`.
 	  - Commentary: PromiseKeeper keeps logging/diagnostics minimal; producers don’t need to attach extra debugging fields.
 	  - Commentary: if hydration is needed, do it upstream in the situationStream (for example via `:map(...)`); PromiseKeeper itself does not “sense the world”.
 	  - [ ] @TODO: Re-check the ingress contract after the first implementation spike (especially unsubscribe and hydration patterns).
 - [x] **Occurrence identity:** use stable ids produced by the situationStream (for example WorldObserver keys), avoid a second PromiseKeeper-specific key taxonomy.
-  - Commentary: if a situation candidate has no `occurrenceId`, PromiseKeeper warns and drops it.
+  - Commentary: if a situation candidate has no `occurranceKey`, PromiseKeeper warns and drops it.
 - [x] **Retry policy:** max retry count + delay between retries.
 - [x] **Retry scheduling:** retries are driven by a small internal pacemaker (e.g. `Events.OnTick`), gated by “next retry due”.
   - Commentary: v2 targets `Events.OnTick` as the pacemaker.
-- [x] **Chance semantics:** deterministic per `occurrenceId` (no re-rolling); derive a stable roll from `namespace + promiseId + occurrenceId` (no extra persistence required).
+- [x] **Chance semantics:** deterministic per `occurranceKey` (no re-rolling); derive a stable roll from `namespace + promiseId + occurranceKey` (no extra persistence required).
 - [x] **Policy skip:** when policy prevents acting (cooldown/chance), PromiseKeeper logs at info level and otherwise does nothing (it waits for the next situation candidate emission).
-- [x] **Cooldown scope:** cooldown is per `promiseId` (not per `subject` / per `occurrenceId`).
+- [x] **Cooldown scope:** cooldown is per `promiseId` (not per `subject` / per `occurranceKey`).
 - [x] **Cleanup/expiry:** only expire when:
   - there are more than 1000 unfulfilled items, and
   - the item is older than 1 in-game day by default.
@@ -266,7 +266,7 @@ Current status: decisions are mostly settled.
 - [x] **Budgets:** decision (for now): no. PromiseKeeper stays simple and relies on upstream systems to keep situation streams cost-bounded.
 - [x] **Reset/forget:** resetting progress is explicit via `forget(promiseId)` on the namespace handle; it never happens implicitly in `promise(...)`.
 - [x] **Resumable-only promises (v2):** PromiseKeeper persists *promise definitions* and resumes them after reload.
-  - Commentary: this means `situationStream` and `action` must be rebuildable by id (via `situationMapId` + `situationArgs` and `actionId` + `actionArgs`).
+  - Commentary: this means `situationStream` and `action` must be rebuildable by id (via `situationKey` + `situationArgs` and `actionId` + `actionArgs`).
   - Commentary: an `ephemeral` mode (inline streams/actions that don’t auto-resume) may be added later, but is intentionally not part of v2.
 
 ---
@@ -295,23 +295,33 @@ To avoid cross-mod collisions in stored state, PromiseKeeper uses a namespaced A
 - `pk.actions.list()`
   - List known actionIds registered in this namespace.
   - Intention: support debugging and “why is this promise broken?” tooling without requiring the modder to add extra plumbing.
-- `pk.situationMaps.define(situationMapId, buildSituationStreamFn)`
-  - Register a situation mapping (factory) under a stable id (required for resumable promises).
+- `pk.situations.define(situationKey, buildSituationStreamFn)`
+  - Register a situation definition (factory) under a stable id (required for resumable promises).
   - The factory returns a live situationStream that PromiseKeeper can subscribe/unsubscribe to.
-  - Overwrite semantics: redefining the same `situationMapId` is allowed and logs at info level.
-- `pk.situationMaps.has(situationMapId)` / `pk.situationMaps.list()`
+  - Overwrite semantics: redefining the same `situationKey` is allowed and logs at info level.
+- `pk.situations.defineFromPZEvent(situationKey, eventSource, mapEventToCandidate)`
+  - Convenience helper for PZ `Events.*` sources. Produces a situationStream that emits `{ occurranceKey, subject }`.
+  - `mapEventToCandidate(args, ...)` receives the promise's `situationArgs` as the first parameter.
+- `pk.situations.defineFromLuaEvent(situationKey, eventSource, mapEventToCandidate)`
+  - Convenience helper for Starlit LuaEvent sources. Produces a situationStream that emits `{ occurranceKey, subject }`.
+  - `mapEventToCandidate(args, ...)` receives the promise's `situationArgs` as the first parameter.
+- `pk.situations.searchIn(WorldObserver)`
+  - One-time bridge for WorldObserver situations. PromiseKeeper can resolve `situationKey` directly from WO.
+  - Resolution rule: if `situationKey` exists in `pk.situations`, it wins; otherwise fall back to WorldObserver.
+  - Hard error if namespace is missing.
+- `pk.situations.has(situationKey)` / `pk.situations.list()`
   - Introspection for debugging and diagnostics.
-- `pk.promise(spec)` (preferred) / `pk.promise(promiseId, situationMapId, situationArgs, actionId, actionArgs, policy)` (legacy positional)
+- `pk.promise(spec)` (preferred) / `pk.promise(promiseId, situationKey, situationArgs, actionId, actionArgs, policy)` (legacy positional)
   - This is the promise: “with this id, for situation candidates from this factory, I will run this action, following this policy”.
-  - `spec` includes: `promiseId`, `situationMapId`, `situationArgs?`, `actionId`, `actionArgs?`, `policy?`.
+  - `spec` includes: `promiseId`, `situationKey`, `situationArgs?`, `actionId`, `actionArgs?`, `policy?`.
   - `situationArgs` and `actionArgs` may be nil (treated as `{}`).
   - The situationStream produced by the factory must be high-quality and specific: it only emits situation candidates that are already acceptable for this promise.
   - Re-register semantics: calling `promise(...)` again with the same `promiseId` updates the stored definition (factory/args/action/policy) without resetting progress; it logs at info level.
-  - Returns a `promise` handle with `started`, `stop()`, `forget()`, `status()`, and `whyNot(occurrenceId)`.
+  - Returns a `promise` handle with `started`, `stop()`, `forget()`, `status()`, and `whyNot(occurranceKey)`.
 - `pk.remember()`
-  - (Re)start all persisted promises in this namespace by wiring their `situationMapId` + `situationArgs` and `actionId` + `actionArgs`.
+  - (Re)start all persisted promises in this namespace by wiring their `situationKey` + `situationArgs` and `actionId` + `actionArgs`.
   - Intention: called at game startup to restore PromiseKeeper’s “keeper” behavior after reload.
-  - Failure behavior: if a promise cannot be resumed (missing `actionId` / `situationMapId`), mark it as broken and log; if `getDebug()` is true, also throw an error so modders see it immediately.
+  - Failure behavior: if a promise cannot be resumed (missing `actionId` / `situationKey`), mark it as broken and log; if `getDebug()` is true, also throw an error so modders see it immediately.
 - `pk.rememberAll()`
   - (Re)start all persisted promises across all namespaces.
   - Intention: an opt-in “help out” tool for advanced modders (or admin mods) that want to restore other mods’ promises.
@@ -321,7 +331,7 @@ To avoid cross-mod collisions in stored state, PromiseKeeper uses a namespaced A
   - Forget stored progress for all promises in this namespace.
 - `pk.listPromises()`
   - List all persisted promise definitions and progress in this namespace.
-- `pk.getStatus(promiseId)` / `pk.debugDump()` / `pk.whyNot(promiseId, occurrenceId)` (diagnostics)
+- `pk.getStatus(promiseId)` / `pk.debugDump()` / `pk.whyNot(promiseId, occurranceKey)` (diagnostics)
   - Diagnostics should surface stable “reason codes” (kept as a small list) so adapters can mark promises as broken in a consistent way.
 
 Notes:
@@ -331,7 +341,7 @@ Notes:
 
 `broken` (promise-level, persistent until fixed):
 - `missing_action_id`
-- `missing_situation_map_id`
+- `missing_situation_key`
 - `invalid_situation_stream`
 - `subscribe_failed`
 - `invalid_policy`
@@ -340,7 +350,7 @@ Notes:
 - `remember_failed`
 
 `whyNot` (per occurrence or transient):
-- `missing_occurrence_id`
+- `missing_occurrance_key`
 - `missing_subject`
 - `already_fulfilled`
 - `max_runs_reached`
@@ -353,11 +363,11 @@ Notes:
 ### Situation candidate shape (conceptual)
 
 Each emitted situation candidate should include:
-- `occurrenceId` (stable identity across reloads)
+- `occurranceKey` (stable identity across reloads)
 - `subject` (the mutatable thing handed to `action`)
 - any additional fields are optional and may be passed through as promise context
 
-If `occurrenceId` or `subject` is missing or nil, PromiseKeeper warns and drops the situation candidate.
+If `occurranceKey` or `subject` is missing or nil, PromiseKeeper warns and drops the situation candidate.
 
 ---
 
@@ -375,23 +385,20 @@ Avoid: pushing a growing taxonomy of “ctx types” into mod-facing code.
 
 ## 8) WorldObserver Integration (Optional Adapter)
 
-WorldObserver can provide powerful situation streams, but PromiseKeeper should only consume them by mapping them into a PromiseKeeper situationStream (actionable situation candidates).
+WorldObserver situations are treated as **already actionable**. PromiseKeeper consumes them directly without per-situation mapping.
 
 Adapter responsibilities:
-- Subscribe to a WO stream/situation
-- Map each emission to:
-  - a stable `occurrenceId` (for idempotence), and
-  - a direct `subject` reference, or enough information to safely rehydrate it later
-- Push into PromiseKeeper router as a situation candidate
-- If the adapter declares WorldObserver interest leases, their lifecycle is tied to the subscription (acquire on subscribe; release on unsubscribe).
+- Resolve a WorldObserver situation stream by `situationKey`.
+- Treat each emission as the `subject` (the full observation, including multi-family).
+- Use `observation.WoMeta.occurranceKey` (or `WoMeta.key`) as the `occurranceKey`.
 
 PromiseKeeper core should not import WO modules.
 
 Convention:
-- Map WO situations into PromiseKeeper explicitly:
-  - `pk.situationMaps.define("id", pk.adapters.worldobserver.mapFrom(wo.situations)("id", mapFn, opts))`
-- If the ids differ, just use different ids:
-  - `pk.situationMaps.define("factoryId", pk.adapters.worldobserver.mapFrom(wo.situations)("situationKey", mapFn, opts))`
+- Bridge once per namespace:
+  - `pk.situations.searchIn(WorldObserver)`
+- Then reference WO situations directly in promises:
+  - `pk.promise({ situationKey = "corpseSquares", ... })`
 
 ---
 
@@ -424,16 +431,16 @@ Convention:
 - Promise: The contract “for situation candidates from a `situationStream`, run an `action` according to `policy`, and remember across reloads”.
 - `actionId`: Stable name for an action function, registered at startup so PromiseKeeper can resume after reload.
 - `actionArgs`: Optional action parameters persisted as part of a promise definition and passed to the action function on each attempt.
-- `situationMapId`: Stable name for a situation map (stream builder), registered at startup so PromiseKeeper can resume after reload.
+- `situationKey`: Stable name for a situation definition (stream builder), registered at startup so PromiseKeeper can resume after reload.
 - `situationStream`: A live stream/event source (built by a factory) that emits situation candidates for a single promise. It should be high-quality and already filtered to match the gate.
 - Situation candidate: One emitted situation instance that PromiseKeeper may attempt to act on.
-- `occurrenceId`: Stable identity for a situation candidate/subject within a promise, used so PromiseKeeper can “check it off” and not redo it after reload.
+- `occurranceKey`: Stable identity for a situation candidate/subject within a promise, used so PromiseKeeper can “check it off” and not redo it after reload.
 - `subject`: The live, safe-to-mutate thing handed to the action.
 - `action`: The modder’s function that performs the side effect (looked up by `actionId`).
 - `policy`: Simple rules about “how” to run: once/N, chance, cooldown, retry delay, expiry.
 - `pk.promise(spec)`: Register (or re-register) a promise in the namespace of `pk` (and return a promise handle).
 - `pk.forget(promiseId)`: Explicitly forget stored progress for a promise id in the namespace of `pk`.
-- Adapter: A bridge that turns some external stream (for example a WorldObserver situation stream) into a PromiseKeeper situationStream (often reshaping emissions via `map`).
+- Adapter: A bridge that turns external sources into PromiseKeeper situationStreams (PZ Events / LuaEvent). WorldObserver uses a search bridge (`pk.situations.searchIn`) and emits actionable observations directly.
 
 ---
 
@@ -467,7 +474,7 @@ end
 return Factories
 ```
 
-Example usage (a mod registering a situationMapId):
+Example usage (a mod registering a situationKey):
 
 ```lua
 local PromiseKeeper = require("PromiseKeeper")
@@ -480,7 +487,7 @@ pk.actions.define("logSquareLoaded", function(subject, args, promiseCtx)
 	local y = subject:getY()
 	local z = subject:getZ()
 	print(("[PK] %s square loaded at x=%d y=%d z=%d note=%s"):format(
-		tostring(promiseCtx.occurrenceId),
+		tostring(promiseCtx.occurranceKey),
 		x,
 		y,
 		z,
@@ -488,20 +495,21 @@ pk.actions.define("logSquareLoaded", function(subject, args, promiseCtx)
 	))
 end)
 
-pk.situationMaps.define("onSquareLoaded", function(_args)
-local mapSquare = pk.factories.makeCandidate(function(square)
-		local x = square:getX()
-		local y = square:getY()
-		local z = square:getZ()
-		return ("x%dy%dz%d"):format(x, y, z)
-	end)
-	return pk.factories.fromPZEvent(Events.LoadGridsquare, mapSquare)
+pk.situations.defineFromPZEvent("onSquareLoaded", Events.LoadGridsquare, function(args, square)
+	local x = square:getX()
+	local y = square:getY()
+	local z = square:getZ()
+	local prefix = tostring(args.keyPrefix or "")
+	return {
+		occurranceKey = prefix .. ("x%dy%dz%d"):format(x, y, z),
+		subject = square,
+	}
 end)
 
 local promise = pk.promise({
 	promiseId = "logSquaresOnce",
-	situationMapId = "onSquareLoaded",
-	situationArgs = nil,
+	situationKey = "onSquareLoaded",
+	situationArgs = { keyPrefix = "sq:" },
 	actionId = "logSquareLoaded",
 	actionArgs = { note = "hello" },
 	policy = { maxRuns = 1, chance = 0.25 },
@@ -531,15 +539,11 @@ function Factories.fromLuaEvent(eventSource, mapEventToCandidate)
 end
 ```
 
-### C) From a WorldObserver situation to a situationStream
+### C) WorldObserver situations (no per-situation mapping)
 
-```lua
--- PromiseKeeper/adapters/worldobserver.lua (sketch)
-local base = situations.get(situationKey, situationArgs)
-local stream = base:asRx():map(mapSituationToCandidate)
-```
+PromiseKeeper treats WorldObserver situation streams as already actionable and reads `WoMeta.occurranceKey` directly.
 
-Example usage (a mod registering a situationMapId):
+Example usage (a mod registering a situationKey in WorldObserver):
 
 ```lua
 local PromiseKeeper = require("PromiseKeeper")
@@ -547,44 +551,22 @@ local WorldObserver = require("WorldObserver")
 
 local MOD_ID = "MyMod"
 local pk = PromiseKeeper.namespace(MOD_ID)
-local wo = {
-  situations = WorldObserver.situations.namespace(MOD_ID),
-}
-local mapWO = pk.adapters.worldobserver.mapFrom(wo.situations)
+pk.situations.searchIn(WorldObserver)
+local situations = WorldObserver.situations.namespace(MOD_ID)
 
 -- Define the WorldObserver situation once (typically at load time).
 -- PromiseKeeper does not hide this step: WO remains the source of truth for situation definitions.
-wo.situations.define("nearSquares", function()
+situations.define("nearSquares", function()
 	return WorldObserver.observations:squares()
 end)
 
 pk.actions.define("markSquare", function(subject, args, promiseCtx)
-	print(("[PK] %s mark square tag=%s"):format(tostring(promiseCtx.occurrenceId), tostring(args.tag)))
+	print(("[PK] %s mark square tag=%s"):format(tostring(promiseCtx.occurranceKey), tostring(args.tag)))
 end)
-
-local opts = {
-	interest = {
-		modId = MOD_ID,
-		key = "nearSquares",
-		spec = { type = "squares", scope = "near" },
-	},
-}
-
-pk.situationMaps.define("nearSquares", mapWO(
-  "nearSquares",
-  function(observation)
-    local square = observation.square
-    return {
-      occurrenceId = square.squareId,
-      subject = square.IsoGridSquare,
-    }
-  end,
-  opts
-))
 
 pk.promise({
 	promiseId = "markNearSquares",
-	situationMapId = "nearSquares",
+	situationKey = "nearSquares",
 	situationArgs = nil,
 	actionId = "markSquare",
 	actionArgs = { tag = "seen" },
@@ -610,7 +592,7 @@ ModData.PromiseKeeperV2 = {
 			promises = {
 				[promiseId] = {
 					definition = {
-						situationMapId = "...",
+						situationKey = "...",
 						situationArgs = { ... },
 						actionId = "...",
 						actionArgs = { ... },
@@ -621,7 +603,7 @@ ModData.PromiseKeeperV2 = {
 						brokenReason = { code = "...", message = "..." } | nil,
 						cooldownUntilMs = 0, -- per promiseId
 						occurrences = {
-							[tostring(occurrenceId)] = {
+							[tostring(occurranceKey)] = {
 								state = "pending" | "done",
 								retryCounter = 0,
 								nextRetryAtMs = 0,
@@ -671,7 +653,7 @@ Core:
 
 Registries:
 - `PromiseKeeper/registries/actions.lua` (actionId -> actionFn)
-- `PromiseKeeper/registries/situations.lua` (situationMapId -> buildSituationStreamFn)
+- `PromiseKeeper/registries/situations.lua` (situationKey -> buildSituationStreamFn)
 
 Policies:
 - `PromiseKeeper/policies/run_count.lua`
@@ -684,7 +666,7 @@ Adapters / factories:
 - `PromiseKeeper/factories.lua` (fromPZEvent, fromLuaEvent)
 - `PromiseKeeper/adapters/pz_events.lua` (PZ `Events.*` streams)
 - `PromiseKeeper/adapters/luaevent.lua` (Starlit `LuaEvent` streams)
-- `PromiseKeeper/adapters/worldobserver.lua` (mapFrom helper + optional interest lifecycle)
+- `PromiseKeeper/adapters/worldobserver.lua` (wraps WO situation streams into candidates)
 
 Debug:
 - `PromiseKeeper/debug/status.lua` (reason codes, `getStatus`, `debugDump`, `whyNot`)
@@ -710,9 +692,9 @@ Suggested unit coverage:
 - **store.lua**: round-trip persist shape, `listPromises`, broken reason recording, per-promise cooldown fields
 - **registries/actions.lua**: overwrite logging, `hasAction`, `listActions`
 - **registries/situations.lua**: overwrite logging, get/define behavior, args normalization
-- **policies/chance.lua**: deterministic roll per `namespace+promiseId+occurrenceId`
+- **policies/chance.lua**: deterministic roll per `namespace+promiseId+occurranceKey`
 - **policies/cooldown.lua**: per-promise cooldown keying
-- **router.lua**: idempotence (only once per `occurrenceId`), policy skip logging, action call signature
+- **router.lua**: idempotence (only once per `occurranceKey`), policy skip logging, action call signature
 - **pacemaker.lua**: retry scheduling with stubbed time (nextRetryDue gating)
 
 ### E) Smoke tests (runtime)
@@ -721,7 +703,7 @@ Three smoke scripts under:
 - `external/PromiseKeeper/Contents/mods/PromiseKeeper/42/media/lua/shared/examples/`
 
 1) **PZ Events smoke** (`smoke_pk_pz_events.lua`)
-   - Use `Events.OnTick` or `Events.LoadGridsquare` with `Factories.fromEvent`
+   - Use `Events.OnTick` or `Events.LoadGridsquare` with `pk.situations.defineFromPZEvent`
    - Register a promise + action, log once, stop.
 
 2) **Starlit LuaEvent smoke** (`smoke_pk_luaevent.lua`)
@@ -730,7 +712,7 @@ Three smoke scripts under:
 
 3) **WorldObserver smoke** (`smoke_pk_worldobserver.lua`)
    - Define a simple WO situation (e.g. `nearSquares`)
-   - Use `WOAdapter.mapFrom(...)` + `opts.interest`, then pass the returned factory into `pk.situationMaps.define(...)`
+   - Call `pk.situations.searchIn(WorldObserver)` once, then promise directly by `situationKey`
    - Confirm a promise fires and logs.
 
 ### F) Open questions to resolve during planning

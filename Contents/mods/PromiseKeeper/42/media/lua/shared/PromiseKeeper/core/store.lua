@@ -17,6 +17,7 @@ if type(moduleName) == "string" then
 end
 
 Store._internal = Store._internal or {}
+Store._internal.warnedLegacy = Store._internal.warnedLegacy or {}
 
 local ROOT_KEY = "PromiseKeeperV2"
 local root
@@ -65,6 +66,13 @@ local function ensurePromise(namespace, promiseId)
 	end
 	entry.definition = entry.definition or {}
 	entry.progress = entry.progress or {}
+	if entry.definition.situationMapId ~= nil then
+		entry.definition = { promiseId = promiseId }
+		if Store._internal.warnedLegacy[namespace] ~= true then
+			U.log(LOG_TAG, "legacy promise definitions dropped namespace=" .. namespace .. " promiseId=" .. promiseId)
+			Store._internal.warnedLegacy[namespace] = true
+		end
+	end
 	if entry.progress.status == nil then
 		entry.progress.status = "active"
 	end
@@ -95,7 +103,11 @@ end
 if Store.getPromise == nil then
 	function Store.getPromise(namespace, promiseId)
 		local bucket = ensureNamespace(namespace)
-		return bucket.promises[promiseId]
+		local entry = bucket.promises[promiseId]
+		if entry ~= nil then
+			ensurePromise(namespace, promiseId)
+		end
+		return entry
 	end
 end
 
@@ -157,9 +169,9 @@ if Store.clearBroken == nil then
 end
 
 if Store.getOccurrence == nil then
-	function Store.getOccurrence(namespace, promiseId, occurrenceId, create)
+	function Store.getOccurrence(namespace, promiseId, occurranceKey, create)
 		local entry = ensurePromise(namespace, promiseId)
-		local key = tostring(occurrenceId)
+		local key = tostring(occurranceKey)
 		local occ = entry.progress.occurrences[key]
 		if occ == nil and create == true then
 			occ = {
@@ -175,9 +187,9 @@ if Store.getOccurrence == nil then
 end
 
 if Store.markDone == nil then
-	function Store.markDone(namespace, promiseId, occurrenceId)
+	function Store.markDone(namespace, promiseId, occurranceKey)
 		local entry = ensurePromise(namespace, promiseId)
-		local occ = Store.getOccurrence(namespace, promiseId, occurrenceId, true)
+		local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, true)
 		occ.state = "done"
 		occ.lastWhyNot = nil
 		occ.retryCounter = 0
@@ -188,15 +200,15 @@ if Store.markDone == nil then
 end
 
 if Store.markWhyNot == nil then
-	function Store.markWhyNot(namespace, promiseId, occurrenceId, code)
-		local occ = Store.getOccurrence(namespace, promiseId, occurrenceId, true)
+	function Store.markWhyNot(namespace, promiseId, occurranceKey, code)
+		local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, true)
 		occ.lastWhyNot = code
 	end
 end
 
 if Store.markAttemptFailed == nil then
-	function Store.markAttemptFailed(namespace, promiseId, occurrenceId, nextRetryAtMs, err)
-		local occ = Store.getOccurrence(namespace, promiseId, occurrenceId, true)
+	function Store.markAttemptFailed(namespace, promiseId, occurranceKey, nextRetryAtMs, err)
+		local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, true)
 		occ.retryCounter = (occ.retryCounter or 0) + 1
 		occ.nextRetryAtMs = tonumber(nextRetryAtMs) or 0
 		occ.lastError = err
@@ -204,8 +216,8 @@ if Store.markAttemptFailed == nil then
 end
 
 if Store.resetRetry == nil then
-	function Store.resetRetry(namespace, promiseId, occurrenceId)
-		local occ = Store.getOccurrence(namespace, promiseId, occurrenceId, true)
+	function Store.resetRetry(namespace, promiseId, occurranceKey)
+		local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, true)
 		occ.retryCounter = 0
 		occ.nextRetryAtMs = 0
 		occ.lastError = nil

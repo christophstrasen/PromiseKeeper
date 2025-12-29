@@ -16,7 +16,7 @@ end
 
 Status.brokenCodes = Status.brokenCodes or {
 	"missing_action_id",
-	"missing_situation_map_id",
+	"missing_situation_key",
 	"invalid_situation_stream",
 	"subscribe_failed",
 	"invalid_policy",
@@ -26,7 +26,7 @@ Status.brokenCodes = Status.brokenCodes or {
 }
 
 Status.whyNotCodes = Status.whyNotCodes or {
-	"missing_occurrence_id",
+	"missing_occurrance_key",
 	"missing_subject",
 	"already_fulfilled",
 	"max_runs_reached",
@@ -45,8 +45,8 @@ if Status.getStatus == nil then
 end
 
 if Status.whyNot == nil then
-	function Status.whyNot(namespace, promiseId, occurrenceId)
-		local occ = Store.getOccurrence(namespace, promiseId, occurrenceId, false)
+	function Status.whyNot(namespace, promiseId, occurranceKey)
+		local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, false)
 		return occ and occ.lastWhyNot or nil
 	end
 end

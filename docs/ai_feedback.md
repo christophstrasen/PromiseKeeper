@@ -18,7 +18,7 @@ Below is what I would understand quickly, what feels “smart but unfamiliar”,
 
 ### ❗What feels *very unfamiliar*
 
-* Everything is built around `PromiseKeeper`, `situations`, `actions`, `policy`, and “occurrenceId”.
+* Everything is built around `PromiseKeeper`, `situations`, `actions`, `policy`, and “occurranceKey”.
 * This is not normal “PZ event handler style”.
 * Looks like something designed with larger architectural goals:
   **deduplication**, **state persistence**, **automation rules**, and **event → action mapping**.
@@ -35,7 +35,7 @@ All three files show the same pattern:
 2. Map each situation occurrence to:
 
    * a `subject`
-   * an `occurrenceId`
+   * an `occurranceKey`
 3. Define an *action* (what to do when a situation occurs)
 4. Define a *promise* (a rule: “when situation happens → run action, following a policy”)
 5. Return a handle with `stop()` and sometimes `fire()`.
@@ -48,12 +48,12 @@ That structure is very consistent.
 
 * Managing **subscriptions**
 * Enforcing **policy** (like maxRuns, chance)
-* Ensuring **idempotence** via `occurrenceId`
+* Ensuring **idempotence** via `occurranceKey`
 
-Example: In the PZ Events smoke test, `occurrenceId` is forced to be stable:
+Example: In the PZ Events smoke test, `occurranceKey` is forced to be stable:
 
 ```lua
-occurrenceId = "player:" .. tostring(getPlayer():getPlayerNum())
+occurranceKey = "player:" .. tostring(getPlayer():getPlayerNum())
 ```
 
 This means even though OnTick fires constantly, PromiseKeeper can treat it as the same “occurrence”. 
@@ -114,7 +114,7 @@ The key mapping line:
 
 ```lua
 return pk.factories.fromLuaEvent(event, function(payload)
-  return { occurrenceId = tostring(payload or "none"), subject = payload }
+  return { occurranceKey = tostring(payload or "none"), subject = payload }
 end)
 ```
 
@@ -143,10 +143,10 @@ Key idea:
     return WorldObserver.observations:squares():squareHasCorpse()
   end)
   ```
-* PromiseKeeper *does not define the core situation itself*, but maps it via adapter:
+* PromiseKeeper *does not define the core situation itself*, it just searches the WO registry:
 
   ```lua
-  local mapWO = pk.adapters.worldobserver.mapFrom(wo.situations)
+  pk.situations.searchIn(WorldObserver)
   ```
 
 Then it sets up an “interest spec” describing spatial query config:
@@ -161,7 +161,7 @@ That’s very different from normal PZ mods.
 
 * This is building a system that tracks world state in a structured way.
 * “Corpse squares near player” becomes a stream of observations.
-* PromiseKeeper turns those into actions once, keyed by squareId.
+* PromiseKeeper turns those into actions once, keyed by `WoMeta.occurranceKey`.
 
 **My modder brain says:**
 
@@ -193,20 +193,20 @@ So I’d feel like:
 
 ---
 
-### ❓ 2) Why the names: *situationMaps*, *situationFactoryId*, *actions.define*?
+### ❓ 2) Why the names: *situations*, *situationFactoryId*, *actions.define*?
 
 The naming feels like something from a bigger design system, not typical mod scripting.
 
 I’d struggle to know:
 
-* when to use `situationMaps.define` vs `wo.situations.define`
+* when to use `situations.define` vs `wo.situations.define`
 * what the *factory* is supposed to mean
 * whether “define” registers globally or per-instance
 
 Especially here:
 
 ```lua
-pk.situationMaps.define("corpseSquares", mapWO("corpseSquares", ...))
+pk.situations.define("corpseSquares", mapWO("corpseSquares", ...))
 ```
 
 That’s two layers of definition. 
@@ -217,9 +217,9 @@ So I’d think:
 
 ---
 
-### ❓ 3) occurrenceId rules are not obvious
+### ❓ 3) occurranceKey rules are not obvious
 
-In all files, the system’s correctness depends on `occurrenceId`.
+In all files, the system’s correctness depends on `occurranceKey`.
 
 But a mid-level modder will ask:
 
@@ -232,7 +232,7 @@ But a mid-level modder will ask:
 
 Example:
 
-In `smoke_pk_luaevent.lua`, `occurrenceId = tostring(payload)` means:
+In `smoke_pk_luaevent.lua`, `occurranceKey = tostring(payload)` means:
 
 * payload `"hello"` and `"hello"` collide → second one won’t run again if promise persists state. 
 
@@ -325,7 +325,7 @@ Even if I struggle, I’d still think this is very cool.
 * Understanding PromiseKeeper’s persistence + lifecycle rules
 * Understanding what “forget” does mechanically
 * Knowing what policies exist beyond maxRuns/chance
-* Knowing how occurrenceId should be designed safely
+* Knowing how occurranceKey should be designed safely
 * Understanding how WorldObserver ties into performance and update cycles
 
 ---
@@ -340,7 +340,7 @@ If I had these files, my next asks would be:
    * once per day
    * once per square
    * 20% chance per tick
-3. A warning section: **how to choose occurrenceId**
+3. A warning section: **how to choose occurranceKey**
 4. Multiplayer notes
 5. A real gameplay example (loot spawn, moodle trigger, quest step, etc.)
 

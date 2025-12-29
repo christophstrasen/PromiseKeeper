@@ -19,32 +19,30 @@ function Smoke.start()
 	local actionId = "logEvent"
 	local promiseId = "logLuaEventOnce"
 
-	pk.situationMaps.define(situationKey, function()
-		-- WHY: Starlit LuaEvent is an event emitter; PromiseKeeper wants a stable id + subject.
-		-- Here we treat the payload itself as the subject, and use `tostring(payload)` as a stable id.
-		-- It could be any better id extracted from the event too.
-		return pk.factories.fromLuaEvent(event, function(payload)
-			return {
-				occurrenceId = tostring(payload or "none"),
-				subject = payload,
-			}
-		end)
+	-- WHY: Starlit LuaEvent is an event emitter; PromiseKeeper wants a stable id + subject.
+	-- Here we treat the payload itself as the subject, and use `tostring(payload)` as a stable id.
+	-- It could be any better id extracted from the event too.
+	pk.situations.defineFromLuaEvent(situationKey, event, function(args, payload)
+		return {
+			occurranceKey = tostring(args.keyPrefix or "") .. tostring(payload or "none"),
+			subject = payload,
+		}
 	end)
 
 	pk.actions.define(actionId, function(subject, args, promiseCtx)
 		print(
-			("[PK] luaevent subject=%s note=%s occurrenceId=%s"):format(
+			("[PK] luaevent subject=%s note=%s occurranceKey=%s"):format(
 				tostring(subject),
 				tostring(args.note),
-				tostring(promiseCtx.occurrenceId)
+				tostring(promiseCtx.occurranceKey)
 			)
 		)
 	end)
 
 	local promise = pk.promise({
 		promiseId = promiseId,
-		situationMapId = situationKey,
-		situationArgs = nil,
+		situationKey = situationKey,
+		situationArgs = { keyPrefix = "evt:" },
 		actionId = actionId,
 		actionArgs = { note = "hello" },
 		policy = { maxRuns = 1, chance = 1 },

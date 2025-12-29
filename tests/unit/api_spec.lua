@@ -58,6 +58,11 @@ describe("PromiseKeeper API", function()
 	before_each(function()
 		resetModData()
 		resetEvents()
+		reload("PromiseKeeper/registries/actions")
+		reload("PromiseKeeper/registries/situations")
+		reload("PromiseKeeper/core/store")
+		reload("PromiseKeeper/core/router")
+		reload("PromiseKeeper/debug/status")
 		PromiseKeeper = reload("PromiseKeeper")
 	end)
 
@@ -74,14 +79,14 @@ describe("PromiseKeeper API", function()
 			}
 		end)
 
-		pk.situationMaps.define("stream", function()
+		pk.situations.define("stream", function()
 			return stream
 		end)
 
 		pk.promise("p1", "stream", nil, "act", { note = "ok" }, { maxRuns = 1, chance = 1 })
 
-		stream:emit({ occurrenceId = "o1", subject = "square" })
-		stream:emit({ occurrenceId = "o1", subject = "square" })
+		stream:emit({ occurranceKey = "o1", subject = "square" })
+		stream:emit({ occurranceKey = "o1", subject = "square" })
 
 		assert.equals(1, #received)
 		assert.equals("square", received[1].subject)
@@ -94,13 +99,13 @@ describe("PromiseKeeper API", function()
 		local stream = makeStream()
 
 		pk.actions.define("act", function() end)
-		pk.situationMaps.define("stream", function()
+		pk.situations.define("stream", function()
 			return stream
 		end)
 
 		local promise = pk.promise({
 			promiseId = "p2",
-			situationMapId = "stream",
+			situationKey = "stream",
 			actionId = "act",
 			actionArgs = {},
 			policy = { maxRuns = 1, chance = 1 },
@@ -117,15 +122,109 @@ describe("PromiseKeeper API", function()
 		assert.is_table(pk.factories)
 		assert.is_table(pk.adapters)
 		assert.is_table(pk.actions)
-		assert.is_table(pk.situationMaps)
+		assert.is_table(pk.situations)
 
 		assert.is_table(promise.status())
 
 		promise.stop()
 		assert.is_nil(stream.handler)
 
-		stream:emit({ occurrenceId = "o1", subject = "square" })
+		stream:emit({ occurranceKey = "o1", subject = "square" })
 		promise.forget()
 		assert.equals(0, promise.status().totalRuns)
+	end)
+
+	it("defines situations from PZ events", function()
+		local pk = PromiseKeeper.namespace("tests")
+		local event = { handlers = {} }
+		function event.Add(fn)
+			event.handlers[fn] = true
+		end
+		function event.Remove(fn)
+			event.handlers[fn] = nil
+		end
+		function event.fire(payload)
+			for fn in pairs(event.handlers) do
+				fn(payload)
+			end
+		end
+
+		local received = {}
+		pk.actions.define("act", function(_subject, _args, promiseCtx)
+			received[#received + 1] = promiseCtx.occurranceKey
+		end)
+
+		pk.situations.defineFromPZEvent("tick", event, function(args, payload)
+			return { occurranceKey = tostring(args.keyPrefix or "") .. tostring(payload), subject = payload }
+		end)
+
+		pk.promise("p1", "tick", { keyPrefix = "k:" }, "act", {}, { maxRuns = 1, chance = 1 })
+		event.fire("hello")
+
+		assert.equals(1, #received)
+		assert.equals("k:hello", received[1])
+	end)
+
+	it("defines situations from LuaEvent sources", function()
+		local pk = PromiseKeeper.namespace("tests")
+		local event = { listeners = {} }
+		function event:addListener(fn)
+			self.listeners[fn] = true
+			return fn
+		end
+		function event:removeListener(fn)
+			self.listeners[fn] = nil
+		end
+		function event:emit(payload)
+			for fn in pairs(self.listeners) do
+				fn(payload)
+			end
+		end
+
+		local received = {}
+		pk.actions.define("act", function(_subject, _args, promiseCtx)
+			received[#received + 1] = promiseCtx.occurranceKey
+		end)
+
+		pk.situations.defineFromLuaEvent("evt", event, function(args, payload)
+			return { occurranceKey = tostring(args.keyPrefix or "") .. tostring(payload), subject = payload }
+		end)
+
+		pk.promise("p2", "evt", { keyPrefix = "k:" }, "act", {}, { maxRuns = 1, chance = 1 })
+		event:emit("hello")
+
+		assert.equals(1, #received)
+		assert.equals("k:hello", received[1])
+	end)
+
+	it("resolves WorldObserver situations via searchIn when not defined in PK", function()
+		local pk = PromiseKeeper.namespace("tests")
+		local stream = makeStream()
+		local registry = {
+			situations = {
+				namespace = function()
+					return {
+						get = function(key)
+							if key == "wo" then
+								return stream
+							end
+							return nil
+						end,
+					}
+				end,
+			},
+		}
+
+		pk.situations.searchIn(registry)
+		local received = {}
+		pk.actions.define("act", function(_subject, _args, promiseCtx)
+			received[#received + 1] = promiseCtx.occurranceKey
+		end)
+
+		pk.promise("p3", "wo", nil, "act", {}, { maxRuns = 1, chance = 1 })
+		stream:emit({ WoMeta = { occurranceKey = "k1" }, value = "obs" })
+
+		assert.equals(1, #received)
+		assert.equals("k1", received[1])
 	end)
 end)

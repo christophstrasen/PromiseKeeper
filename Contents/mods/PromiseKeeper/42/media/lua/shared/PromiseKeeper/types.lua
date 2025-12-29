@@ -13,21 +13,21 @@
 
 ---@class PKPolicy
 ---@field maxRuns number|nil Total number of successful runs allowed for a promiseId.
----@field chance number|nil Chance threshold [0,1], deterministic per occurrenceId.
+---@field chance number|nil Chance threshold [0,1], deterministic per occurranceKey.
 ---@field cooldownSeconds number|nil Cooldown after successful runs (per promiseId).
 ---@field retry PKPolicyRetry|nil Retry behavior when the action errors.
 ---@field expiry PKPolicyExpiry|nil Optional pruning configuration.
 
 ---@class PKSituationCandidate
----@field occurrenceId any Stable id for idempotence across reloads.
+---@field occurranceKey any Stable id for idempotence across reloads.
 ---@field subject any Non-nil "safe-to-mutate" world object (or payload) handed to the action.
 ---@field [string] any Additional fields are allowed and passed through via `promiseCtx.situation`.
 
 ---@class PKPromiseCtx
 ---@field promiseId string
----@field occurrenceId any
+---@field occurranceKey any
 ---@field actionId string
----@field situationMapId string
+---@field situationKey string
 ---@field retryCounter number
 ---@field policy PKPolicy
 ---@field situation PKSituationCandidate The full candidate (pass-through context).
@@ -44,7 +44,7 @@
 
 ---@class PKPromiseSpec
 ---@field promiseId string
----@field situationMapId string
+---@field situationKey string
 ---@field situationArgs table|nil
 ---@field actionId string
 ---@field actionArgs table|nil
@@ -57,31 +57,35 @@
 ---@field stop fun() Stop the live subscription (does not delete persisted state).
 ---@field forget fun() Reset persisted progress for this promise.
 ---@field status fun(): table|nil Get persisted progress for this promise.
----@field whyNot fun(occurrenceId:any): string|nil Get last whyNot reason for an occurrence.
+---@field whyNot fun(occurranceKey:any): string|nil Get last whyNot reason for an occurrence.
 
 ---@class PKNamespaceHandle
 ---@field adapters table Convenience reference to PromiseKeeper.adapters
 ---@field factories table Convenience reference to PromiseKeeper.factories
 ---@field actions table
----@field situationMaps table
+---@field situations table
 ---@field promise fun(self:PKNamespaceHandle, spec:PKPromiseSpec): PKPromiseHandle
----@overload fun(self:PKNamespaceHandle, promiseId:string, situationMapId:string, situationArgs:table|nil, actionId:string, actionArgs:table|nil, policy:PKPolicy|nil): PKPromiseHandle
+---@overload fun(self:PKNamespaceHandle, promiseId:string, situationKey:string, situationArgs:table|nil, actionId:string, actionArgs:table|nil, policy:PKPolicy|nil): PKPromiseHandle
 ---@field remember fun(self:PKNamespaceHandle)
 ---@field rememberAll fun(self:PKNamespaceHandle)
 ---@field forget fun(self:PKNamespaceHandle, promiseId:string)
 ---@field forgetAll fun(self:PKNamespaceHandle)
 ---@field listPromises fun(self:PKNamespaceHandle): table
 ---@field getStatus fun(self:PKNamespaceHandle, promiseId:string): table|nil
----@field whyNot fun(self:PKNamespaceHandle, promiseId:string, occurrenceId:any): string|nil
+---@field whyNot fun(self:PKNamespaceHandle, promiseId:string, occurranceKey:any): string|nil
 
 ---@class PKActionRegistry
 ---@field define fun(actionId:string, actionFn:PKActionFn)
 ---@field has fun(actionId:string): boolean
 ---@field list fun(): table
 
----@class PKSituationMapRegistry
----@field define fun(situationMapId:string, factoryFn:PKSituationFactoryFn)
----@field has fun(situationMapId:string): boolean
+---@class PKSituationRegistry
+---@field define fun(situationKey:string, factoryFn:PKSituationFactoryFn)
+---@field defineFromPZEvent fun(situationKey:string, eventSource:table, mapEventToCandidate:function)
+---@field defineFromLuaEvent fun(situationKey:string, eventSource:table, mapEventToCandidate:function)
+-- `mapEventToCandidate(args, ...)` receives `situationArgs` as the first parameter.
+---@field searchIn fun(registry:table)
+---@field has fun(situationKey:string): boolean
 ---@field list fun(): table
 
 local Types = {}

@@ -120,10 +120,10 @@ local function subscribeToStream(stream, onNext)
 	return nil, "invalid_situation_stream"
 end
 
-local function scheduleRetry(namespace, promiseId, occurrenceId, nextRetryAtMs)
+local function scheduleRetry(namespace, promiseId, occurranceKey, nextRetryAtMs)
 	local runtime = Router._runtime
 	local pending = ensureRuntimeBucket(runtime.pendingRetries, namespace, promiseId)
-	pending[tostring(occurrenceId)] = true
+	pending[tostring(occurranceKey)] = true
 	if nextRetryAtMs and nextRetryAtMs > 0 then
 		local current = runtime.nextRetryDueMs
 		if current == nil or nextRetryAtMs < current then
@@ -132,57 +132,57 @@ local function scheduleRetry(namespace, promiseId, occurrenceId, nextRetryAtMs)
 	end
 end
 
-local function clearRetry(namespace, promiseId, occurrenceId)
+local function clearRetry(namespace, promiseId, occurranceKey)
 	local pending = Router._runtime.pendingRetries
 	local bucket = pending[namespace]
 	if bucket and bucket[promiseId] then
-		bucket[promiseId][tostring(occurrenceId)] = nil
+		bucket[promiseId][tostring(occurranceKey)] = nil
 	end
 end
 
-local function recordCandidate(namespace, promiseId, occurrenceId, candidate)
+local function recordCandidate(namespace, promiseId, occurranceKey, candidate)
 	local bucket = ensureRuntimeBucket(Router._runtime.candidates, namespace, promiseId)
-	bucket[tostring(occurrenceId)] = candidate
+	bucket[tostring(occurranceKey)] = candidate
 end
 
-local function clearCandidate(namespace, promiseId, occurrenceId)
+local function clearCandidate(namespace, promiseId, occurranceKey)
 	local bucket = Router._runtime.candidates
 	local nsBucket = bucket[namespace]
 	if nsBucket and nsBucket[promiseId] then
-		nsBucket[promiseId][tostring(occurrenceId)] = nil
+		nsBucket[promiseId][tostring(occurranceKey)] = nil
 	end
 end
 
-local function getCandidate(namespace, promiseId, occurrenceId)
+local function getCandidate(namespace, promiseId, occurranceKey)
 	local bucket = Router._runtime.candidates
 	local nsBucket = bucket[namespace]
 	if nsBucket and nsBucket[promiseId] then
-		return nsBucket[promiseId][tostring(occurrenceId)]
+		return nsBucket[promiseId][tostring(occurranceKey)]
 	end
 	return nil
 end
 
-local function handlePolicySkip(namespace, promiseId, occurrenceId, code)
-	Store.markWhyNot(namespace, promiseId, occurrenceId, code)
-	logInfo(("policy skip %s promiseId=%s occurrenceId=%s"):format(tostring(code), tostring(promiseId), tostring(occurrenceId)))
+local function handlePolicySkip(namespace, promiseId, occurranceKey, code)
+	Store.markWhyNot(namespace, promiseId, occurranceKey, code)
+	logInfo(("policy skip %s promiseId=%s occurranceKey=%s"):format(tostring(code), tostring(promiseId), tostring(occurranceKey)))
 end
 
-local function handleMissing(namespace, promiseId, occurrenceId, code, note)
-	if occurrenceId ~= nil then
-		Store.markWhyNot(namespace, promiseId, occurrenceId, code)
+local function handleMissing(namespace, promiseId, occurranceKey, code, note)
+	if occurranceKey ~= nil then
+		Store.markWhyNot(namespace, promiseId, occurranceKey, code)
 	end
 	if note then
-		logInfo(("drop %s promiseId=%s occurrenceId=%s %s"):format(
+		logInfo(("drop %s promiseId=%s occurranceKey=%s %s"):format(
 			tostring(code),
 			tostring(promiseId),
-			tostring(occurrenceId),
+			tostring(occurranceKey),
 			tostring(note)
 		))
 	else
-		logInfo(("drop %s promiseId=%s occurrenceId=%s"):format(
+		logInfo(("drop %s promiseId=%s occurranceKey=%s"):format(
 			tostring(code),
 			tostring(promiseId),
-			tostring(occurrenceId)
+			tostring(occurranceKey)
 		))
 	end
 end
@@ -237,10 +237,10 @@ local function pruneExpiredOccurrences(progress, policy, nowMs)
 	end
 end
 
-local function tryAction(namespace, promiseId, definition, progress, occurrenceId, candidate)
+local function tryAction(namespace, promiseId, definition, progress, occurranceKey, candidate)
 	local subject = candidate.subject
 	if subject == nil then
-		handleMissing(namespace, promiseId, occurrenceId, "missing_subject")
+		handleMissing(namespace, promiseId, occurranceKey, "missing_subject")
 		return false
 	end
 
@@ -251,30 +251,30 @@ local function tryAction(namespace, promiseId, definition, progress, occurrenceI
 
 	local okRun, reason = RunCount.shouldRun(progress, policy)
 	if not okRun then
-		handlePolicySkip(namespace, promiseId, occurrenceId, reason)
+		handlePolicySkip(namespace, promiseId, occurranceKey, reason)
 		return false
 	end
 
 	local okCooldown, cooldownReason = Cooldown.shouldRun(progress, policy, nowMs)
 	if not okCooldown then
-		handlePolicySkip(namespace, promiseId, occurrenceId, cooldownReason)
+		handlePolicySkip(namespace, promiseId, occurranceKey, cooldownReason)
 		return false
 	end
 
-	local okChance, chanceReason = Chance.shouldRun(namespace, promiseId, occurrenceId, policy)
+	local okChance, chanceReason = Chance.shouldRun(namespace, promiseId, occurranceKey, policy)
 	if not okChance then
-		handlePolicySkip(namespace, promiseId, occurrenceId, chanceReason)
+		handlePolicySkip(namespace, promiseId, occurranceKey, chanceReason)
 		return false
 	end
 
-	local occ = Store.getOccurrence(namespace, promiseId, occurrenceId, true)
+	local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, true)
 	local okRetry, retryReason = Retry.shouldAttempt(occ, policy, nowMs)
 	if not okRetry then
-		handlePolicySkip(namespace, promiseId, occurrenceId, retryReason)
+		handlePolicySkip(namespace, promiseId, occurranceKey, retryReason)
 		if retryReason == "retries_exhausted" then
 			occ.state = "done"
-			clearCandidate(namespace, promiseId, occurrenceId)
-			clearRetry(namespace, promiseId, occurrenceId)
+			clearCandidate(namespace, promiseId, occurranceKey)
+			clearRetry(namespace, promiseId, occurranceKey)
 		end
 		return false
 	end
@@ -287,9 +287,9 @@ local function tryAction(namespace, promiseId, definition, progress, occurrenceI
 
 	local promiseCtx = {
 		promiseId = promiseId,
-		occurrenceId = occurrenceId,
+		occurranceKey = occurranceKey,
 		actionId = definition.actionId,
-		situationMapId = definition.situationMapId,
+		situationKey = definition.situationKey,
 		retryCounter = occ and occ.retryCounter or 0,
 		policy = policy,
 		situation = candidate,
@@ -297,10 +297,10 @@ local function tryAction(namespace, promiseId, definition, progress, occurrenceI
 
 	local ok, err = pcall(actionFn, subject, definition.actionArgs or {}, promiseCtx)
 	if ok then
-		Store.resetRetry(namespace, promiseId, occurrenceId)
-		Store.markDone(namespace, promiseId, occurrenceId)
-		clearRetry(namespace, promiseId, occurrenceId)
-		clearCandidate(namespace, promiseId, occurrenceId)
+		Store.resetRetry(namespace, promiseId, occurranceKey)
+		Store.markDone(namespace, promiseId, occurranceKey)
+		clearRetry(namespace, promiseId, occurranceKey)
+		clearCandidate(namespace, promiseId, occurranceKey)
 
 		local cooldownUntil = Cooldown.nextCooldownUntil(nowMs, policy)
 		if cooldownUntil > 0 then
@@ -318,10 +318,10 @@ local function tryAction(namespace, promiseId, definition, progress, occurrenceI
 		return true
 	end
 
-	Store.markWhyNot(namespace, promiseId, occurrenceId, "action_error")
-	logInfo(("action error promiseId=%s occurrenceId=%s err=%s"):format(
+	Store.markWhyNot(namespace, promiseId, occurranceKey, "action_error")
+	logInfo(("action error promiseId=%s occurranceKey=%s err=%s"):format(
 		tostring(promiseId),
-		tostring(occurrenceId),
+		tostring(occurranceKey),
 		tostring(err)
 	))
 
@@ -329,20 +329,20 @@ local function tryAction(namespace, promiseId, definition, progress, occurrenceI
 	if nextRetryAtMs <= 0 then
 		nextRetryAtMs = nowMs or 0
 	end
-	Store.markAttemptFailed(namespace, promiseId, occurrenceId, nextRetryAtMs, err)
+	Store.markAttemptFailed(namespace, promiseId, occurranceKey, nextRetryAtMs, err)
 
-	local retryState = Store.getOccurrence(namespace, promiseId, occurrenceId, false)
+	local retryState = Store.getOccurrence(namespace, promiseId, occurranceKey, false)
 	local retryCounter = retryState and retryState.retryCounter or 0
 	local maxRetries = tonumber(policy and policy.retry and policy.retry.maxRetries) or 3
 	if maxRetries >= 0 and retryCounter > maxRetries then
-		Store.markWhyNot(namespace, promiseId, occurrenceId, "retries_exhausted")
+		Store.markWhyNot(namespace, promiseId, occurranceKey, "retries_exhausted")
 		retryState.state = "done"
-		clearCandidate(namespace, promiseId, occurrenceId)
-		clearRetry(namespace, promiseId, occurrenceId)
+		clearCandidate(namespace, promiseId, occurranceKey)
+		clearRetry(namespace, promiseId, occurranceKey)
 		return false
 	end
 
-	scheduleRetry(namespace, promiseId, occurrenceId, nextRetryAtMs)
+	scheduleRetry(namespace, promiseId, occurranceKey, nextRetryAtMs)
 	return false
 end
 
@@ -352,48 +352,48 @@ if Router.handleCandidate == nil then
 			return
 		end
 		if type(candidate) ~= "table" then
-			handleMissing(namespace, promiseId, nil, "missing_occurrence_id", "candidate not a table")
+			handleMissing(namespace, promiseId, nil, "missing_occurrance_key", "candidate not a table")
 			return
 		end
 
-		local occurrenceId = candidate.occurrenceId
-		if occurrenceId == nil then
-			handleMissing(namespace, promiseId, nil, "missing_occurrence_id")
+		local occurranceKey = candidate.occurranceKey
+		if occurranceKey == nil then
+			handleMissing(namespace, promiseId, nil, "missing_occurrance_key")
 			return
 		end
 
 		if candidate.subject == nil then
-			handleMissing(namespace, promiseId, occurrenceId, "missing_subject")
+			handleMissing(namespace, promiseId, occurranceKey, "missing_subject")
 			return
 		end
 
 		local entry = Store.getPromise(namespace, promiseId)
 		if entry == nil then
-			logInfo(("drop candidate promise missing promiseId=%s occurrenceId=%s"):format(
+			logInfo(("drop candidate promise missing promiseId=%s occurranceKey=%s"):format(
 				tostring(promiseId),
-				tostring(occurrenceId)
+				tostring(occurranceKey)
 			))
 			return
 		end
 
 		local progress = entry.progress or {}
 		if progress.status == "broken" or progress.status == "stopped" then
-			logInfo(("drop candidate promise %s promiseId=%s occurrenceId=%s"):format(
+			logInfo(("drop candidate promise %s promiseId=%s occurranceKey=%s"):format(
 				tostring(progress.status),
 				tostring(promiseId),
-				tostring(occurrenceId)
+				tostring(occurranceKey)
 			))
 			return
 		end
 
-		local occ = Store.getOccurrence(namespace, promiseId, occurrenceId, true)
+		local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, true)
 		if occ and occ.state == "done" then
-			Store.markWhyNot(namespace, promiseId, occurrenceId, "already_fulfilled")
+			Store.markWhyNot(namespace, promiseId, occurranceKey, "already_fulfilled")
 			return
 		end
 
-		recordCandidate(namespace, promiseId, occurrenceId, candidate)
-		tryAction(namespace, promiseId, entry.definition or {}, progress, occurrenceId, candidate)
+		recordCandidate(namespace, promiseId, occurranceKey, candidate)
+		tryAction(namespace, promiseId, entry.definition or {}, progress, occurranceKey, candidate)
 	end
 end
 
@@ -426,14 +426,14 @@ local function rememberOne(namespace, promiseId, entry, opts)
 		progress.status = "active"
 	end
 
-	local situationMapId = def.situationMapId
+	local situationKey = def.situationKey
 	local actionId = def.actionId
 
-	if type(situationMapId) ~= "string" or situationMapId == "" then
-		Store.markBroken(namespace, promiseId, "missing_situation_map_id", "situationMapId missing")
-		logInfo(("broken missing situationMapId promiseId=%s"):format(tostring(promiseId)))
+	if type(situationKey) ~= "string" or situationKey == "" then
+		Store.markBroken(namespace, promiseId, "missing_situation_key", "situationKey missing")
+		logInfo(("broken missing situationKey promiseId=%s"):format(tostring(promiseId)))
 		if opts and opts.throwOnError then
-			error("missing_situation_map_id", 2)
+			error("missing_situation_key", 2)
 		end
 		return false
 	end
@@ -468,15 +468,15 @@ local function rememberOne(namespace, promiseId, entry, opts)
 		return false
 	end
 
-	local factoryFn = Situations.get(namespace, situationMapId)
+	local factoryFn = Situations.resolve(namespace, situationKey)
 	if type(factoryFn) ~= "function" then
-		Store.markBroken(namespace, promiseId, "missing_situation_map_id", "situationMapId not registered")
-		logInfo(("broken missing situationMap registration promiseId=%s situationMapId=%s"):format(
+		Store.markBroken(namespace, promiseId, "missing_situation_key", "situationKey not registered")
+		logInfo(("broken missing situation registration promiseId=%s situationKey=%s"):format(
 			tostring(promiseId),
-			tostring(situationMapId)
+			tostring(situationKey)
 		))
 		if opts and opts.throwOnError then
-			error("missing_situation_map_id", 2)
+			error("missing_situation_key", 2)
 		end
 		return false
 	end
@@ -484,7 +484,12 @@ local function rememberOne(namespace, promiseId, entry, opts)
 	local ok, streamOrErr = pcall(factoryFn, def.situationArgs or {})
 	if not ok then
 		local errMsg = tostring(streamOrErr)
-		local reason = errMsg:find("interest_failed", 1, true) and "interest_failed" or "remember_failed"
+		local reason = "remember_failed"
+		if errMsg:find("interest_failed", 1, true) then
+			reason = "interest_failed"
+		elseif errMsg:find("missing_situation_key", 1, true) then
+			reason = "missing_situation_key"
+		end
 		Store.markBroken(namespace, promiseId, reason, errMsg)
 		logInfo(("broken remember failed promiseId=%s reason=%s"):format(tostring(promiseId), tostring(reason)))
 		if opts and opts.throwOnError then
@@ -605,15 +610,15 @@ if Router.processRetries == nil then
 		local minNext = nil
 		for namespace, bucket in pairs(runtime.pendingRetries or {}) do
 			for promiseId, occurrences in pairs(bucket or {}) do
-				for occurrenceId in pairs(occurrences or {}) do
-					local occ = Store.getOccurrence(namespace, promiseId, occurrenceId, false)
+				for occurranceKey in pairs(occurrences or {}) do
+					local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, false)
 					local nextRetryAtMs = tonumber(occ and occ.nextRetryAtMs) or 0
 					if nextRetryAtMs > 0 then
 						if nowMs and nextRetryAtMs <= nowMs then
-							local candidate = getCandidate(namespace, promiseId, occurrenceId)
+							local candidate = getCandidate(namespace, promiseId, occurranceKey)
 							if candidate then
 								Router.handleCandidate(namespace, promiseId, candidate)
-								local updated = Store.getOccurrence(namespace, promiseId, occurrenceId, false)
+								local updated = Store.getOccurrence(namespace, promiseId, occurranceKey, false)
 								local rescheduled = tonumber(updated and updated.nextRetryAtMs) or 0
 								if rescheduled > nowMs then
 									if minNext == nil or rescheduled < minNext then

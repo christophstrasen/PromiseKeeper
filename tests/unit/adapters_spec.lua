@@ -40,7 +40,7 @@ describe("PromiseKeeper adapters", function()
 
 		local received = {}
 		local stream = PZEvents.fromEvent(event, function(payload)
-			return { occurrenceId = payload, subject = payload }
+			return { occurranceKey = payload, subject = payload }
 		end)
 
 		local sub = stream:subscribe(function(candidate)
@@ -77,7 +77,7 @@ describe("PromiseKeeper adapters", function()
 
 		local received = {}
 		local stream = LuaEventAdapter.fromEvent(event, function(payload)
-			return { occurrenceId = payload, subject = payload }
+			return { occurranceKey = payload, subject = payload }
 		end)
 
 		local sub = stream:subscribe(function(candidate)
@@ -93,7 +93,7 @@ describe("PromiseKeeper adapters", function()
 		assert.equals(1, #received)
 	end)
 
-	it("defines a PK situation map backed by a WO situation", function()
+	it("wraps a WO situation stream into candidates", function()
 		local base = { handler = nil }
 		function base:subscribe(onNext)
 			self.handler = onNext
@@ -122,37 +122,17 @@ describe("PromiseKeeper adapters", function()
 			return rx
 		end
 
-		local pk = { factories = {}, situationMaps = {} }
-		function pk.situationMaps.define(id, factoryFn)
-			pk.factories[id] = factoryFn
-		end
+		assert.is_true(WOAdapter.isWorldObserver({ situations = { namespace = function() end } }))
 
-		local situations = { defs = {} }
-		function situations.define(id, fn)
-			situations.defs[id] = fn
-		end
-		function situations.get(id, args)
-			return situations.defs[id](args)
-		end
-
-		situations.define("s1", function()
-			return base
-		end)
-
-		local factoryFn = WOAdapter.mapFrom(situations)("s1", function(obs)
-			return { occurrenceId = obs.id, subject = obs.subject }
-		end)
-		pk.situationMaps.define("f1", factoryFn)
-
-		local stream = pk.factories.f1({})
+		local stream = WOAdapter.wrapSituationStream(base)
 		local received = {}
 		local sub = stream:subscribe(function(candidate)
 			received[#received + 1] = candidate.subject
 		end)
 
-		base:emit({ id = "o1", subject = "square" })
+		base:emit({ WoMeta = { occurranceKey = "o1" }, subject = "square" })
 		assert.equals(1, #received)
-		assert.equals("square", received[1])
+		assert.equals("square", received[1].subject)
 
 		sub:unsubscribe()
 	end)

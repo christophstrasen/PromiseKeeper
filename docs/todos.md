@@ -4,12 +4,12 @@ The feedback feels very fair and (importantly) it describes exactly the “adopt
 
 - The smokes *do* communicate a consistent pattern (“define situation stream → define action → promise”), but a mid-level PZ modder will still feel: “this is a framework, not normal PZ event-handler code”.
 - The biggest missing piece is a **mental model + lifecycle**: persistence, when work runs, what resumes on reload, what `forget()` actually does, where state lives, and what happens in MP/client/server.
-- The second biggest cliff is **`occurrenceId`**: it’s central to correctness, but the rules and consequences (collisions, stability, scope) aren’t obvious.
+- The second biggest cliff is **`occurranceKey`**: it’s central to correctness, but the rules and consequences (collisions, stability, scope) aren’t obvious.
 - Third: **policy** looks promising but under-explained (semantics, what exists, what doesn’t, and what’s deterministic).
 - Fourth: the **WO integration** is powerful but feels like “two layers of define + mapping”, and modders won’t know if it’s overkill or why it matters for performance.
 - Strengths are also real: clean Lua, consistent structure, explicit stop/cleanup handles, and the separation of *situation* vs *action* is genuinely a good habit.
 
-Some of the naming confusion called out there has already been improved (e.g. `situationMapId`, `mapFrom`, clearer smoke comments), but the core critiques still stand: docs + guidance + ergonomic defaults are now the leverage.
+Some of the naming confusion called out there has already been improved (e.g. `situationKey`, `searchIn`, clearer smoke comments), but the core critiques still stand: docs + guidance + ergonomic defaults are now the leverage.
 
 ---
 
@@ -19,13 +19,13 @@ Some of the naming confusion called out there has already been improved (e.g. `s
 Add a short doc aimed at mid-level modders:
 - What PromiseKeeper is (persistent idempotent rule runner) and isn’t (no scanning, no world logic).
 - The lifecycle: when to call `pk.promise(...)`, when to call `pk.remember()`, what happens on reload.
-- The three ids (namespace / promiseId / occurrenceId) and what each is for.
+- The three ids (namespace / promiseId / occurranceKey) and what each is for.
 - `stop()` vs `forget()` vs `forgetAll()` (and why smokes use forget for iteration).
 - A “plain PZ equivalent” section: show `Events.OnTick.Add(...)` next to the PromiseKeeper version and explain what PK adds (persistence, idempotence, retry/policy, diagnostics).
 
-### 2) Documentation: occurrenceId guide (this is the make-or-break)
+### 2) Documentation: occurranceKey guide (this is the make-or-break)
 A dedicated page with:
-- The *real* rule: occurrenceId should represent “the thing you mean”, not “the time you saw it”.
+- The *real* rule: occurranceKey should represent “the thing you mean”, not “the time you saw it”.
 - Scope: uniqueness is only meaningful within `(namespace, promiseId)`; collisions there cause skipped actions.
 - Recipes: squares (`squareId`), zombies (`zombieId`), rooms (`roomId`), players (stable id strategy), event payloads (when `tostring(payload)` is safe vs not).
 - Anti-patterns: timestamp-as-id (turns everything into “new occurrences”, breaks idempotence, bloats persistence).
@@ -48,7 +48,7 @@ A guide that answers:
 Implement this in the **WO adapter** (not PK core), since it’s WO-shaped knowledge:
 
 - Provide `pk.adapters.worldobserver.mappers` (patchable table):
-  - `mappers.square(observation) -> { occurrenceId, subject, observation = observation }`
+  - `mappers.square(observation) -> { occurranceKey, subject, observation = observation }`
   - `mappers.zombie(...)`, `mappers.player(...)`, etc for the common schemas you already have.
   - `mappers.schema(observation)` that dispatches via `observation.rxMeta.schema` when available (falls back to field detection).
 - Then the common case becomes:
@@ -76,8 +76,8 @@ The feedback is right to ask this. Even if we don’t fully solve MP now, we sho
 
 ### 8) Tests to support the above
 Add busted tests specifically for:
-- Default WO mappers: given sample WO-shaped observations, they produce stable `{occurrenceId, subject}`.
-- occurrenceId collisions: show how a collision suppresses re-acting (so modders understand the consequences).
-- policy determinism: same occurrenceId always same chance result.
+- Default WO mappers: given sample WO-shaped observations, they produce stable `{occurranceKey, subject}`.
+- occurranceKey collisions: show how a collision suppresses re-acting (so modders understand the consequences).
+- policy determinism: same occurranceKey always same chance result.
 
 If you want, I can turn this plan into a prioritized “next 5 PRs” breakdown (what to do first to maximize adoption).

@@ -8,9 +8,9 @@ Goal: remove the WO mapping layer, treat WorldObserver situations as already act
 - For non-WO event sources (PZ Events / Starlit LuaEvent) we still must shape `{ occurranceKey, subject }`.
 
 ## 1) Rename concepts (hard cut)
-- Rename `situationMapId` → `situationKey` everywhere in PromiseKeeper.
-- Rename registry surface `pk.situationMaps` → `pk.situations`.
-- Rename `occurrenceId` → `occurranceKey` everywhere in PromiseKeeper.
+- Rename `situationKey` → `situationKey` everywhere in PromiseKeeper.
+- Rename registry surface `pk.situations` → `pk.situations`.
+- Rename `occurranceKey` → `occurranceKey` everywhere in PromiseKeeper.
 - Rename backing registry module/file names as needed to match (`registries/situations.lua`, `core/router.lua`, `requests_store.lua`, etc.).
 - Remove any leftover “map” terminology in docs/examples.
 
@@ -19,6 +19,7 @@ Add the following API on the namespaced `pk` handle:
 - `pk.situations.define(situationKey, buildStreamFn)`
 - `pk.situations.defineFromLuaEvent(situationKey, luaEvent, toCandidateFn)`
 - `pk.situations.defineFromPZEvent(situationKey, pzEvent, toCandidateFn)`
+  - `toCandidateFn(args, ...)` receives `situationArgs` as the first parameter.
 - `pk.situations.searchIn(WorldObserver)`
   - One-time bridge: caches the registry reference and binds the namespace.
   - Auto-detects the WorldObserver adapter for situations.
@@ -27,7 +28,7 @@ Add the following API on the namespaced `pk` handle:
   - Resolution rule: if `situationKey` exists in `pk.situations`, it wins; otherwise fall back to the search registry.
 
 ## 3) Promise shape update
-- `pk.promise` accepts `situationKey` instead of `situationMapId`.
+- `pk.promise` accepts `situationKey` instead of `situationKey`.
 - Stored promise definitions and in-memory routing use `situationKey`.
 
 ## 4) Router behavior changes
@@ -43,8 +44,8 @@ Add the following API on the namespaced `pk` handle:
   - If missing: warn + skip (PromiseKeeper side).
 
 ## 5) Registry + persistence changes
-- Update the persisted definition schema to store `situationKey` (not `situationMapId`).
-- Hard-cut behavior: delete/ignore old persisted entries with `situationMapId`.
+- Update the persisted definition schema to store `situationKey` (not `situationKey`).
+- Hard-cut behavior: delete/ignore old persisted entries with `situationKey`.
   - Clear old definitions on load if an old field is detected (warn once).
 
 ## 6) Remove old mapping helpers
@@ -67,8 +68,8 @@ Add the following API on the namespaced `pk` handle:
   - Missing WO situation key → broken + warn (no crash).
 
 ## 9) Cleanup + consistency sweep
-- Replace all references to `situationMapId` with `situationKey` (code, docs, tests, smokes).
-- Replace all references to `occurrenceId` with `occurranceKey` (code, docs, tests, smokes).
+- Replace all references to `situationKey` with `situationKey` (code, docs, tests, smokes).
+- Replace all references to `occurranceKey` with `occurranceKey` (code, docs, tests, smokes).
 - Align logging wording (“situation” vs “map”).
 - Ensure error messages match the new terms.
 
@@ -81,4 +82,4 @@ Add the following API on the namespaced `pk` handle:
 ## 11) Decisions locked
 - WO bridge method name: `pk.situations.searchIn(WorldObserver)`.
 - Missing namespace when calling `searchIn` is a hard error.
-- Persistence is a hard cut: old `situationMapId` definitions are dropped (warn once).
+- Persistence is a hard cut: old `situationKey` definitions are dropped (warn once).
