@@ -72,6 +72,8 @@ If an action errors:
 - schedules a retry using an internal pacemaker (driven by `Events.OnTick`),
 - retries the **last seen situation payload** (PromiseKeeper does not “re-sense” the world).
 
+Intent: retries are for transient failures (ordering hiccups, rare engine nils, timing edges). If you regularly need to “wait until the world is ready”, model that upstream by having the situation emit later (when the `subject` is ready) instead of relying on long-running retries.
+
 Fields:
 - `retry.maxRetries` (default `3`)
   - counts failures

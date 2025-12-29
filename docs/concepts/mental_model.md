@@ -17,4 +17,6 @@ When a situation occurrence arrives, PromiseKeeper:
 - runs the action focusing on the `subject`,
 - remembers what it did using `occurranceKey` (so it won’t redo it after reload).
 
+Retries are a safety net for transient action failures. PromiseKeeper is not meant to “discover readiness” by retrying for a long time: situations should usually emit only when the `subject` is ready to act on.
+
 PromiseKeeper intentionally does not sense the world. If you need probing/scanning or game logic (distance, room type), do it upstream (WorldObserver or your mod code) and emit situations from there.
