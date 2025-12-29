@@ -29,11 +29,13 @@ PromiseKeeper currently starts from a clean slate for end-user docs. The target 
 **Core concepts (small pages, one idea each)**
 - `docs/concepts/mental_model.md` — the lifecycle in plain words (define situations/actions → promise → reload → remember).
 - `docs/concepts/ids.md` — namespace / promiseId / situationKey / occurranceKey (this is the adoption hinge).
+- `docs/concepts/glossary.md` — canonical terms in one place (avoid drift).
 
 **Guides (workflows)**
 - `docs/guides/occurrance_key.md` — recipes + anti-patterns (must exist early; see `docs_internal/todos.md`).
 - `docs/guides/policy.md` — deterministic semantics (chance/cooldown/maxRuns/retry).
 - `docs/guides/lifecycle.md` — `promise()` vs `remember()`, `stop()` vs `forget()`.
+- `docs/guides/persistence.md` — what is persisted in ModData, how to inspect and reset it.
 - `docs/guides/events.md` — how to define situations from PZ events and LuaEvent.
 - `docs/guides/worldobserver.md` — the sensing/acting boundary + `pk.situations.searchIn(WorldObserver)`.
 - `docs/guides/troubleshooting.md` — troubleshooting + diagnostics (status/whyNot/broken).
@@ -75,16 +77,7 @@ Only after the example works do we explain the machinery (namespaces, persistenc
 
 ### 3.2 Keep vocabulary sticky, but don’t over-jargon
 
-Use the shipped terms consistently:
-- **namespace** — isolates mod state
-- **situationKey** — where situations come from (registered situation definition)
-- **promiseId** — the durable rule id
-- **occurranceKey** — the durable per-occurrence id (idempotence hinge)
-- **subject** — what the action receives (ideally safe to mutate)
-- **policy** — deterministic gating rules (chance/cooldown/maxRuns/retry)
-- **promiseCtx** — metadata passed into actions
-
-Avoid older v1 terms in new docs (fulfillers, ensureAt, matchers) except inside archived drafts.
+Use the shipped terms from the `glossary.md` consistently:
 
 ### 3.3 Be explicit about what PK does *not* do
 
@@ -93,10 +86,10 @@ Repeat this early and often:
 - PK does **not** encode game/domain logic like distance ≤ 30.
 - PK only performs minimal readiness checks (missing `occurranceKey` or missing `subject` → warn + skip).
 
-### 3.4 The “occurranceKey” rule is first-class documentation
+### 3.4 The “occurranceKey” guidance is first-class documentation
 
 `occurranceKey` is the make-or-break concept. Docs must:
-- state the rule in plain words (“identity of the thing you mean”, not “time you saw it”),
+- state the guidance in plain words (“identity of the thing you mean”, not “time you saw it”),
 - explain collisions and consequences (idempotence means collisions suppress re-acting),
 - give a few concrete recipes (square key, zombie key, event payload key),
 - show anti-patterns (timestamp-as-id).
@@ -106,7 +99,7 @@ This is currently a top todo (`docs_internal/todos.md`) and should be treated as
 ### 3.5 Be honest about current unknowns
 
 PromiseKeeper touches persistence and runtime scheduling; docs must clearly mark what is verified vs not:
-- multiplayer semantics (server/client responsibilities) are not fully verified yet,
+- multiplayer semantics (server/client responsibilities) are not fully verified yet, we target Single Player.
 - ModData persistence location and sharing rules should be documented once confirmed.
 
 ## 4) Examples and teaching style

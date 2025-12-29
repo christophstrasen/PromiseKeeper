@@ -11,5 +11,6 @@ Start here:
 
 Then:
 - Concepts: `concepts/mental_model.md`, `concepts/ids.md`, `concepts/glossary.md`
-- Guides: `guides/occurrance_key.md`, `guides/policy.md`, `guides/lifecycle.md`, `guides/events.md`, `guides/worldobserver.md`
+- Guides: `guides/occurrance_key.md`, `guides/policy.md`, `guides/lifecycle.md`, `guides/events.md`, `guides/worldobserver.md`, `guides/persistence.md`
 - Troubleshooting: `guides/troubleshooting.md`
+- Reference: `reference/api.md`

@@ -62,7 +62,7 @@ Positional form (supported):
 
 The returned handle contains:
 - `promise.stop()`
-- `promise.forget()` (delete definition + progress)
+- `promise.forget()` (reset progress; keeps definition)
 - `promise.status()` (status summary)
 - `promise.whyNot(occurranceKey)` (last skip reason for this occurrence)
 

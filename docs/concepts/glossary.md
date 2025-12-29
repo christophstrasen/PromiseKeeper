@@ -19,5 +19,12 @@
 - **`promiseId`**: A stable name for a promise (“this promise”), chosen by the modder within a namespace.
 - **`occurranceKey`**: A stable identity for a situation occurrence, used for idempotence (“don’t do this twice across reloads”). In WorldObserver streams this defaults to `observation.WoMeta.occurranceKey` (or `observation.WoMeta.key`).
 - **Subject**: The value handed to the action (often the whole WorldObserver observation, or a game object like `IsoGridSquare` for event-driven situations).
+- **`promiseCtx`**: A small metadata table passed to every action call (ids, policy, retry counters, etc).
 
 - **Policy**: Simple constraints about “how” to run: once/N, chance, cooldown, retry delay, expiry.
+- **`whyNot`**: A short reason code explaining why PromiseKeeper skipped an occurrence (maxRuns reached, cooldown, chance miss, missing keys, …).
+- **Broken promise**: A promise that can’t start (usually because its `situationKey` or `actionId` can’t be resolved at startup). PromiseKeeper keeps the persisted entry and records a reason code.
+
+- **`pk.remember()` / `pk.rememberAll()`**: (Re)start persisted promises at game startup (including after reload).
+- **`promise.stop()`**: Stop listening for situations for this promise right now (keeps persisted progress; does not persist a “stopped” flag).
+- **`promise.forget()` / `pk.forget(...)`**: Reset stored progress (occurranceKey history, counters, cooldown) and clear broken state (keeps the promise definition).
