@@ -143,7 +143,7 @@ local namespace = "MyModId"
 local pk = PromiseKeeper.namespace(namespace)
 local wo = WorldObserver.namespace(namespace)
 
--- One-time bridge (typically at load time).
+-- One-time bridge (typically at game startup).
 pk.situations.searchIn(WorldObserver)
 
 -- Define a WO situation (WO is the sensing layer; PK does not probe).

@@ -35,7 +35,7 @@ PromiseKeeper:
 ## Key vocabulary
 
 - `namespace`: isolates different mods’ persisted state.
-- `promiseId`: stable identity of “this automation rule”.
+- `promiseId`: stable identity of “this promise”.
 - `situationKey`: stable identity of “where situations come from”.
 - `occurranceKey`: stable identity of “the specific situation occurrence” (idempotence key).
 - `subject`: the thing handed to the action (should be safe to mutate, or contain such objects).
@@ -48,4 +48,4 @@ PromiseKeeper is standalone:
 
 PromiseKeeper can optionally integrate with WorldObserver:
 - WorldObserver situations already emit actionable observations
-- In that mode, PromiseKeeper treats the whole observation as the `subject` and uses th e`occurranceKey` from `WoMeta`.
+- In that mode, PromiseKeeper treats the whole observation as the `subject` and uses the `occurranceKey` from `WoMeta`.

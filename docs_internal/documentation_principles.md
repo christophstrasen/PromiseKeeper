@@ -16,21 +16,51 @@ Non-goals:
 
 ## 2) Layered documentation structure
 
-Keep a clear split between stable docs and exploratory notes.
+Keep a clear split between **user-facing docs** (for modders) and **internal docs** (for maintainers and ongoing design work).
 
-- **User-facing (stable, task-oriented)**
-  - `docs_internal/vision.md` — what PK is/is-not, in plain words.
-  - `docs_internal/api.md` — the *implemented* API surface with small runnable examples.
-  - `docs_internal/architecture.md` — the *implemented* module layout and persistence shape (for maintainers).
+### User-facing docs (stable, task-oriented): `docs/`
 
-- **Internal / archival**
+PromiseKeeper currently starts from a clean slate for end-user docs. The target tree should provide a manageable learning curve:
+
+**Landing + “first success”**
+- `docs/index.md` — what PK is/is-not, and which path to pick (events-only vs WorldObserver integration).
+- `docs/quickstart.md` — “PromiseKeeper in 5 minutes” (this is a top todo): one event example + one WO example.
+
+**Core concepts (small pages, one idea each)**
+- `docs/concepts/mental_model.md` — the lifecycle in plain words (define situations/actions → promise → reload → remember).
+- `docs/concepts/ids.md` — namespace / promiseId / situationKey / occurranceKey (this is the adoption hinge).
+
+**Guides (workflows)**
+- `docs/guides/occurrance_key.md` — recipes + anti-patterns (must exist early; see `docs_internal/todos.md`).
+- `docs/guides/policy.md` — deterministic semantics (chance/cooldown/maxRuns/retry).
+- `docs/guides/lifecycle.md` — `promise()` vs `remember()`, `stop()` vs `forget()`.
+- `docs/guides/events.md` — how to define situations from PZ events and LuaEvent.
+- `docs/guides/worldobserver.md` — the sensing/acting boundary + `pk.situations.searchIn(WorldObserver)`.
+- `docs/guides/troubleshooting.md` — troubleshooting + diagnostics (status/whyNot/broken).
+
+**Reference (once stable)**
+- `docs/reference/api.md` — concise API reference (kept in sync with code).
+
+**Recipes (copy/paste patterns)**
+- `docs/recipes/` — small practical recipes (once per square/room, chance per occurranceKey, cooldown per promiseId, retry, etc).
+
+The above is anchored to our current priorities:
+- `docs_internal/todos.md` (quickstart + occurranceKey guide + MP validation),
+- `docs_internal/ideas.md` (recipes, policy presets, diagnostics improvements),
+- `docs_internal/drafts/ai_feedback.md` (adoption cliff: mental model + occurranceKey + policy clarity).
+
+### Internal docs (maintainers and design work): `docs_internal/`
+
+Everything in `docs_internal/` is internal and may be drafty or incomplete:
+- Stable internal docs (current implementation):
+  - `docs_internal/vision.md`
+  - `docs_internal/api.md`
+  - `docs_internal/architecture.md`
+  - `docs_internal/documentation_principles.md`
+- Archival / drafts:
   - `docs_internal/drafts/` — design explorations, refactor plans, historical docs, raw notes.
   - `docs_internal/brownbag.md` — catch-all for notes that aren’t ready for stable docs.
   - `docs_internal/project_history.md` — short pointers for “why is this here?” and where older docs live.
-
-When in doubt:
-- If it helps modders *use* PromiseKeeper today, it belongs in `docs_internal/api.md`.
-- If it records trade-offs, history, or partial designs, it belongs in `docs_internal/drafts/`.
 
 ## 3) Content principles (PromiseKeeper-specific)
 
@@ -117,4 +147,3 @@ Before merging a new or heavily edited PK doc:
 - Does it clearly explain cleanup (`stop` / `forget`)?
 - Does it avoid leaking draft planning into stable docs?
 - Is it correctly placed (stable vs `drafts`)?
-
