@@ -17,6 +17,7 @@ function Smoke.start()
 
 	pk.situationMaps.define(situationId, function()
 		-- WHY: PZ's built-in Events.* don't carry a stable "occurrence id" for idempotence,
+		-- And it is nice to prepare the subject for downstream actions
 		-- so we shape the event into `{ occurrenceId, subject }` ourselves.
 		return pk.factories.fromPZEvent(Events.OnTick, function()
 			return {
