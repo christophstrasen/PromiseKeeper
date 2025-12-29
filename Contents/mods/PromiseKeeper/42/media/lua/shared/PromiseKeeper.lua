@@ -103,13 +103,13 @@ end
 	}
 	end
 
-	local function normalizePromiseSpec(specOrPromiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)
+	local function normalizePromiseSpec(specOrPromiseId, situationMapId, situationArgs, actionId, actionArgs, policy)
 		if type(specOrPromiseId) == "table" then
 			return specOrPromiseId
 		end
 		return {
 			promiseId = specOrPromiseId,
-			situationFactoryId = situationFactoryId,
+			situationMapId = situationMapId,
 			situationArgs = situationArgs,
 			actionId = actionId,
 			actionArgs = actionArgs,
@@ -144,15 +144,15 @@ end
 			end
 
 			pk.situationMaps = {}
-			---@param situationFactoryId string
+			---@param situationMapId string
 			---@param buildSituationStreamFn function
-			function pk.situationMaps.define(situationFactoryId, buildSituationStreamFn)
-				return Situations.define(namespace, situationFactoryId, buildSituationStreamFn)
+			function pk.situationMaps.define(situationMapId, buildSituationStreamFn)
+				return Situations.define(namespace, situationMapId, buildSituationStreamFn)
 			end
 
-			---@param situationFactoryId string
-			function pk.situationMaps.has(situationFactoryId)
-				return Situations.has(namespace, situationFactoryId)
+			---@param situationMapId string
+			function pk.situationMaps.has(situationMapId)
+				return Situations.has(namespace, situationMapId)
 			end
 
 			function pk.situationMaps.list()
@@ -160,21 +160,21 @@ end
 			end
 
 			---@param promiseId string|table `promiseId` string, or a `spec` table (preferred).
-			---@param situationFactoryId string|nil
+			---@param situationMapId string|nil
 			---@param situationArgs table|nil
 			---@param actionId string|nil
 			---@param actionArgs table|nil
 			---@param policy table|nil
-			function pk.promise(promiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)
-				local spec = normalizePromiseSpec(promiseId, situationFactoryId, situationArgs, actionId, actionArgs, policy)
+			function pk.promise(promiseId, situationMapId, situationArgs, actionId, actionArgs, policy)
+				local spec = normalizePromiseSpec(promiseId, situationMapId, situationArgs, actionId, actionArgs, policy)
 				U.assertf(type(spec) == "table", "promise spec must be a table")
 
 				assertNonEmptyString(spec.promiseId, "promiseId")
-				assertNonEmptyString(spec.situationFactoryId, "situationFactoryId")
+				assertNonEmptyString(spec.situationMapId, "situationMapId")
 				assertNonEmptyString(spec.actionId, "actionId")
 
 				local def = {
-					situationFactoryId = spec.situationFactoryId,
+					situationMapId = spec.situationMapId,
 					situationArgs = U.shallowCopy(normalizeArgs(spec.situationArgs, "situationArgs")),
 					actionId = spec.actionId,
 					actionArgs = U.shallowCopy(normalizeArgs(spec.actionArgs, "actionArgs")),

@@ -43,7 +43,7 @@ function Smoke.start()
 
 	local promise = pk.promise({
 		promiseId = promiseId,
-		situationFactoryId = situationId,
+		situationMapId = situationId,
 		situationArgs = nil,
 		actionId = actionId,
 		actionArgs = { note = "hello" },

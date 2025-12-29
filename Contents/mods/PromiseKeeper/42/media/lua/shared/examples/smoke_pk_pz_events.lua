@@ -38,7 +38,7 @@ function Smoke.start()
 
 	local promise = pk.promise({
 		promiseId = promiseId,
-		situationFactoryId = situationId,
+		situationMapId = situationId,
 		situationArgs = nil, -- Events are rarely if ever parameterized.
 		actionId = actionId,
 		actionArgs = { note = "once" },

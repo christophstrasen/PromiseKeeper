@@ -27,7 +27,7 @@
 ---@field promiseId string
 ---@field occurrenceId any
 ---@field actionId string
----@field situationFactoryId string
+---@field situationMapId string
 ---@field retryCounter number
 ---@field policy PKPolicy
 ---@field situation PKSituationCandidate The full candidate (pass-through context).
@@ -44,7 +44,7 @@
 
 ---@class PKPromiseSpec
 ---@field promiseId string
----@field situationFactoryId string
+---@field situationMapId string
 ---@field situationArgs table|nil
 ---@field actionId string
 ---@field actionArgs table|nil
@@ -65,7 +65,7 @@
 ---@field actions table
 ---@field situationMaps table
 ---@field promise fun(self:PKNamespaceHandle, spec:PKPromiseSpec): PKPromiseHandle
----@overload fun(self:PKNamespaceHandle, promiseId:string, situationFactoryId:string, situationArgs:table|nil, actionId:string, actionArgs:table|nil, policy:PKPolicy|nil): PKPromiseHandle
+---@overload fun(self:PKNamespaceHandle, promiseId:string, situationMapId:string, situationArgs:table|nil, actionId:string, actionArgs:table|nil, policy:PKPolicy|nil): PKPromiseHandle
 ---@field remember fun(self:PKNamespaceHandle)
 ---@field rememberAll fun(self:PKNamespaceHandle)
 ---@field forget fun(self:PKNamespaceHandle, promiseId:string)
@@ -80,8 +80,8 @@
 ---@field list fun(): table
 
 ---@class PKSituationMapRegistry
----@field define fun(situationFactoryId:string, factoryFn:PKSituationFactoryFn)
----@field has fun(situationFactoryId:string): boolean
+---@field define fun(situationMapId:string, factoryFn:PKSituationFactoryFn)
+---@field has fun(situationMapId:string): boolean
 ---@field list fun(): table
 
 local Types = {}

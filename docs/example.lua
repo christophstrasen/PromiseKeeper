@@ -40,7 +40,7 @@ pk.situationMaps.define("nearSquares", mapWO(
 
 pk.promise({
 	promiseId = "markNearSquares",
-	situationFactoryId = "nearSquares",
+	situationMapId = "nearSquares",
 	situationArgs = nil,
 	actionId = "markSquare",
 	actionArgs = { tag = "seen" },

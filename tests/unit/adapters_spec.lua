@@ -93,7 +93,7 @@ describe("PromiseKeeper adapters", function()
 		assert.equals(1, #received)
 	end)
 
-	it("defines a PK situation factory backed by a WO situation", function()
+	it("defines a PK situation map backed by a WO situation", function()
 		local base = { handler = nil }
 		function base:subscribe(onNext)
 			self.handler = onNext

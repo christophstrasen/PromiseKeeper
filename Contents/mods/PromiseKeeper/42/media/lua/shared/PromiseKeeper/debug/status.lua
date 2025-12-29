@@ -16,7 +16,7 @@ end
 
 Status.brokenCodes = Status.brokenCodes or {
 	"missing_action_id",
-	"missing_situation_factory_id",
+	"missing_situation_map_id",
 	"invalid_situation_stream",
 	"subscribe_failed",
 	"invalid_policy",

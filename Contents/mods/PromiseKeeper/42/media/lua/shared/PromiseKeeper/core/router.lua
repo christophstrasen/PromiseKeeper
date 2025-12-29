@@ -289,7 +289,7 @@ local function tryAction(namespace, promiseId, definition, progress, occurrenceI
 		promiseId = promiseId,
 		occurrenceId = occurrenceId,
 		actionId = definition.actionId,
-		situationFactoryId = definition.situationFactoryId,
+		situationMapId = definition.situationMapId,
 		retryCounter = occ and occ.retryCounter or 0,
 		policy = policy,
 		situation = candidate,
@@ -426,14 +426,14 @@ local function rememberOne(namespace, promiseId, entry, opts)
 		progress.status = "active"
 	end
 
-	local situationFactoryId = def.situationFactoryId
+	local situationMapId = def.situationMapId
 	local actionId = def.actionId
 
-	if type(situationFactoryId) ~= "string" or situationFactoryId == "" then
-		Store.markBroken(namespace, promiseId, "missing_situation_factory_id", "situationFactoryId missing")
-		logInfo(("broken missing situationFactoryId promiseId=%s"):format(tostring(promiseId)))
+	if type(situationMapId) ~= "string" or situationMapId == "" then
+		Store.markBroken(namespace, promiseId, "missing_situation_map_id", "situationMapId missing")
+		logInfo(("broken missing situationMapId promiseId=%s"):format(tostring(promiseId)))
 		if opts and opts.throwOnError then
-			error("missing_situation_factory_id", 2)
+			error("missing_situation_map_id", 2)
 		end
 		return false
 	end
@@ -468,15 +468,15 @@ local function rememberOne(namespace, promiseId, entry, opts)
 		return false
 	end
 
-	local factoryFn = Situations.get(namespace, situationFactoryId)
+	local factoryFn = Situations.get(namespace, situationMapId)
 	if type(factoryFn) ~= "function" then
-		Store.markBroken(namespace, promiseId, "missing_situation_factory_id", "situationFactoryId not registered")
-		logInfo(("broken missing situationFactory registration promiseId=%s situationFactoryId=%s"):format(
+		Store.markBroken(namespace, promiseId, "missing_situation_map_id", "situationMapId not registered")
+		logInfo(("broken missing situationMap registration promiseId=%s situationMapId=%s"):format(
 			tostring(promiseId),
-			tostring(situationFactoryId)
+			tostring(situationMapId)
 		))
 		if opts and opts.throwOnError then
-			error("missing_situation_factory_id", 2)
+			error("missing_situation_map_id", 2)
 		end
 		return false
 	end

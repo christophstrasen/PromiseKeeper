@@ -100,7 +100,7 @@ describe("PromiseKeeper API", function()
 
 		local promise = pk.promise({
 			promiseId = "p2",
-			situationFactoryId = "stream",
+			situationMapId = "stream",
 			actionId = "act",
 			actionArgs = {},
 			policy = { maxRuns = 1, chance = 1 },

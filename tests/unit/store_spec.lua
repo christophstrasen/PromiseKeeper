@@ -36,13 +36,13 @@ describe("PromiseKeeper store", function()
 	it("persists definitions and progress", function()
 		Store.upsertDefinition("ns", "promiseA", {
 			actionId = "actionA",
-			situationFactoryId = "factoryA",
+			situationMapId = "factoryA",
 			actionArgs = { note = "hello" },
 		})
 
 		local entry = Store.getPromise("ns", "promiseA")
 		assert.equals("actionA", entry.definition.actionId)
-		assert.equals("factoryA", entry.definition.situationFactoryId)
+		assert.equals("factoryA", entry.definition.situationMapId)
 
 		Store.markDone("ns", "promiseA", "occ1")
 		local progress = Store.getPromise("ns", "promiseA").progress
@@ -53,7 +53,7 @@ describe("PromiseKeeper store", function()
 	it("tracks retry attempts", function()
 		Store.upsertDefinition("ns", "promiseB", {
 			actionId = "actionB",
-			situationFactoryId = "factoryB",
+			situationMapId = "factoryB",
 		})
 		Store.markAttemptFailed("ns", "promiseB", "occ9", 1000, "boom")
 		local occ = Store.getOccurrence("ns", "promiseB", "occ9", false)

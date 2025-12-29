@@ -1,4 +1,4 @@
--- registries/situations.lua -- situationFactoryId -> buildSituationStreamFn (namespaced).
+-- registries/situations.lua -- situationMapId -> buildSituationStreamFn (namespaced).
 local U = require("PromiseKeeper/util")
 local LOG_TAG = "[PromiseKeeper situations]"
 
@@ -32,33 +32,33 @@ local function getBucket(namespace, create)
 end
 
 if Situations.define == nil then
-	function Situations.define(namespace, situationFactoryId, factoryFn)
+	function Situations.define(namespace, situationMapId, factoryFn)
 		assertNonEmptyString(namespace, "namespace")
-		assertNonEmptyString(situationFactoryId, "situationFactoryId")
+		assertNonEmptyString(situationMapId, "situationMapId")
 		U.assertf(type(factoryFn) == "function", "factoryFn must be a function")
 
 		local bucket = getBucket(namespace, true)
-		local existed = bucket[situationFactoryId] ~= nil
-		bucket[situationFactoryId] = factoryFn
+		local existed = bucket[situationMapId] ~= nil
+		bucket[situationMapId] = factoryFn
 
 		if existed then
-			U.log(LOG_TAG, "situation overwritten namespace=" .. namespace .. " id=" .. situationFactoryId)
+			U.log(LOG_TAG, "situation overwritten namespace=" .. namespace .. " id=" .. situationMapId)
 		end
 	end
 end
 
 if Situations.get == nil then
-	function Situations.get(namespace, situationFactoryId)
+	function Situations.get(namespace, situationMapId)
 		assertNonEmptyString(namespace, "namespace")
-		assertNonEmptyString(situationFactoryId, "situationFactoryId")
+		assertNonEmptyString(situationMapId, "situationMapId")
 		local bucket = getBucket(namespace, false)
-		return bucket and bucket[situationFactoryId] or nil
+		return bucket and bucket[situationMapId] or nil
 	end
 end
 
 if Situations.has == nil then
-	function Situations.has(namespace, situationFactoryId)
-		return Situations.get(namespace, situationFactoryId) ~= nil
+	function Situations.has(namespace, situationMapId)
+		return Situations.get(namespace, situationMapId) ~= nil
 	end
 end
 
