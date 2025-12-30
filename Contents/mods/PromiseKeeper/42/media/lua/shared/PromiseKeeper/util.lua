@@ -1,5 +1,10 @@
 -- PromiseKeeper/util.lua
 
+local okBase, BaseU = pcall(require, "DREAMBase/util")
+if okBase and type(BaseU) == "table" then
+	return BaseU
+end
+
 ---@class PromiseKeeper.Util
 local U = {}
 
