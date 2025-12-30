@@ -1,4 +1,4 @@
-PromiseKeeper [b42]
+PromiseKeeper [42SP]
 -------------
 Workshop ID: TBD
 Mod ID: PromiseKeeper

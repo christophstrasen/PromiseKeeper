@@ -1,4 +1,4 @@
-name=PromiseKeeper [b42]
+name=PromiseKeeper [42SP]
 id=PromiseKeeper
 description=tbd
 versionMin=42.0
@@ -6,4 +6,4 @@ poster=poster.png
 icon=icon_64.png
 authors=Karmachameleon
 version=0.1
-loadModAfer=
+loadModAfer=\StarlitLibrary,\DoggyLibrary

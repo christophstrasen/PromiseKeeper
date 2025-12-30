@@ -1,5 +1,5 @@
 version=1
-title=PromiseKeeper [b42]
+title=PromiseKeeper [42SP]
 description=tbd
 tags=Library;Utility;Build 42;Development
 visibility=Public
