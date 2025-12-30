@@ -1,5 +1,26 @@
 version=1
-title=PromiseKeeper [42SP]
-description=tbd
+title=[42SP] PromiseKeeper
+description=PromiseKeeper - Situation-to-action orchestration for Project Zomboid (Build 42)
+
+NOT TESTED IN MULTIPLAYER. DON'T USE THERE. YOU HAVE BEEN WARNED. thx.
+
+PromiseKeeper is a persistence-first library for mid-level Lua mod developers.
+It listens for situations from your sources (WorldObserver streams or Events.*),
+runs actions according to your policy, and remembers progress across reloads.
+
+Use it for things like:
+- run an action once per square/zombie/player (even after reload)
+- deterministic chance, cooldown, retries, and clear "why not" diagnostics
+- clean separation between sensing (situations) and acting (actions)
+
+This is a developer library, not gameplay content. It does nothing on its own.
+
+GitHub (docs, source, examples):
+https://github.com/christophstrasen/PromiseKeeper
+
+Dependencies (required by mod.info):
+- StarlitLibrary
+- DoggyLibrary
+
 tags=Library;Utility;Build 42;Development
 visibility=Public
