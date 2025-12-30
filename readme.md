@@ -1,6 +1,7 @@
 # PromiseKeeper
 
-“A convenience‑focused, declarative modding library for **Project Zomboid (Build 42) SP** that ties situations to actions via persisted promises. It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.”
+A stateful situation-to-action orchestration library for **Project Zomboid (Build 42) SP**.
+It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.”
 
 [![CI](https://github.com/christophstrasen/PromiseKeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/christophstrasen/PromiseKeeper/actions/workflows/ci.yml)
 
