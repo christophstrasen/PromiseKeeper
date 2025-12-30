@@ -1,7 +1,7 @@
 # PromiseKeeper
 
 A stateful situation-to-action orchestration library for **Project Zomboid (Build 42) SP**.
-It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.”
+It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.
 
 [![CI](https://github.com/christophstrasen/PromiseKeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/christophstrasen/PromiseKeeper/actions/workflows/ci.yml)
 
@@ -75,6 +75,7 @@ Internal docs (implementation notes, not a stable learning path):
 - `docs_internal/vision.md`
 - `docs_internal/architecture.md`
 - `docs_internal/api.md`
+- `docs_internal/project_history.md`
 
 ## What’s neat or at least unique about PromiseKeeper
 
