@@ -32,6 +32,22 @@ pre-commit run --all-files
 
 ## 3) Building and syncing to Project Zomboid
 
-@TODO: Document how we package/sync PromiseKeeper for in-game testing.
-@TODO: Document how to run in-game smoke scripts (if/when we keep them).
+PromiseKeeper is packaged as a standard Project Zomboid Build 42 mod under `Contents/`.
 
+One-off deploy:
+
+```bash
+./dev/sync-workshop.sh
+# or:
+./dev/sync-mods.sh
+```
+
+Watch mode (defaults to Workshop wrapper deploy):
+
+```bash
+./dev/watch.sh
+```
+
+Notes:
+- `./dev/watch.sh` defaults to `TARGET=workshop`. To deploy to `~/Zomboid/mods`, run: `TARGET=mods ./dev/watch.sh`
+- You can override destinations with `PZ_WORKSHOP_DIR` / `PZ_MODS_DIR`.

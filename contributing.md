@@ -19,7 +19,15 @@ PromiseKeeper is intentionally light on game/domain logic (distance, room types,
 
 ## Development workflow
 
-See: `docs_internal/developing.md`.
+See:
+- Development quickstart (single repo): `development.md`
+- Internal notes: `docs_internal/developing.md`
+
+## DREAM suite
+
+PromiseKeeper is one module in the DREAM family (WorldObserver, PromiseKeeper, SceneBuilder, LQR, reactivex, DREAM).
+
+Maintainer convenience repo (multi-repo sync/watch): https://github.com/christophstrasen/DREAM-Workspace
 
 ## Expectations
 
@@ -28,4 +36,3 @@ See: `docs_internal/developing.md`.
 - Prefer deterministic behavior and persisted state clarity.
 - Add or update `busted` tests when changing logic:
   - Run: `busted tests`
-
