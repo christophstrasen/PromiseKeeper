@@ -1,5 +1,5 @@
 -- adapters/luaevent.lua -- situationStream builder for Starlit LuaEvent sources.
-local U = require("PromiseKeeper/util")
+local Events = require("DREAMBase/events")
 
 local moduleName = ...
 local LuaEventAdapter = {}
@@ -14,64 +14,12 @@ if type(moduleName) == "string" then
 	end
 end
 
-local function assertEvent(eventSource)
-	U.assertf(type(eventSource) == "table", "eventSource must be a table")
-	U.assertf(type(eventSource.addListener) == "function", "eventSource.addListener must be a function")
-	U.assertf(type(eventSource.removeListener) == "function", "eventSource.removeListener must be a function")
-end
-
-local function subscribe(eventSource, handler)
-	local ok, token = pcall(eventSource.addListener, eventSource, handler)
-	if not ok then
-		ok, token = pcall(eventSource.addListener, handler)
-	end
-	if not ok then
-		return nil
-	end
-	return function()
-		local removeArg = token ~= nil and token or handler
-		local okRemove = pcall(eventSource.removeListener, eventSource, removeArg)
-		if not okRemove then
-			pcall(eventSource.removeListener, removeArg)
-		end
-	end
-end
-
 if LuaEventAdapter.fromEvent == nil then
 	--- Build a situationStream from a LuaEvent source (addListener/removeListener).
 	---@param eventSource table
 	---@param mapEventToCandidate function
 	function LuaEventAdapter.fromEvent(eventSource, mapEventToCandidate)
-		-- Prefer DREAMBase when available (workspace/in-game); fall back to local implementation
-		-- so PromiseKeeper stays fully standalone for CI/tests.
-		local okBase, BaseEvents = pcall(require, "DREAMBase/events")
-		if okBase and type(BaseEvents) == "table" and type(BaseEvents.fromLuaEvent) == "function" then
-			return BaseEvents.fromLuaEvent(eventSource, mapEventToCandidate)
-		end
-
-		assertEvent(eventSource)
-		return {
-			subscribe = function(_, onNext)
-				local handler = function(...)
-					if not onNext then
-						return
-					end
-					local candidate = mapEventToCandidate(...)
-					if candidate ~= nil then
-						onNext(candidate)
-					end
-				end
-				local unsubscribe = subscribe(eventSource, handler)
-				if not unsubscribe then
-					error("luaevent_subscribe_failed", 2)
-				end
-				return {
-					unsubscribe = function()
-						unsubscribe()
-					end,
-				}
-			end,
-		}
+		return Events.fromLuaEvent(eventSource, mapEventToCandidate)
 	end
 end
 
