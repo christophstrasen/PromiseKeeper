@@ -21,6 +21,7 @@ https://github.com/christophstrasen/PromiseKeeper
 Dependencies (required by mod.info):
 - StarlitLibrary
 - DoggyLibrary
+- DREAMBase
 
 tags=Library;Utility;Build 42;Development
 visibility=Public

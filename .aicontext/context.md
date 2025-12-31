@@ -25,8 +25,8 @@
 - **Be clear** about files and code locations
 - **Use EmmyLua doctags** Add them and keep them compatible with existing ones.
 - **Respect the Coding Style & Conventions** in `context.md`
-- When logging use `log("String Message")` or `U.logCtx(LOG_TAG, "String Message", ContextTable)` (both from the shipped `util.lua`)
-- Use assertf() from `util.lua`
+- When logging use `U.log("TAG", "String Message")` or `U.logCtx("TAG", "String Message", ContextTable)` from `require("DREAMBase/util")`
+- Use `U.assertf(...)` from `require("DREAMBase/util")`
 - Keep imports/`require()` paths valid for Build 42 (no `client/server/shared` segments in `require`).
 
 ## 3) Project Summary
@@ -40,19 +40,21 @@ tbd
 ```
 ├── Contents
 │   └── mods
-│       └── SceneBuilder
+│       └── PromiseKeeper
 │           ├── 42
 │           │   ├── icon_64.png
 │           │   ├── media
 │           │   │   └── lua
 │           │   │       └── shared
-│           │   │           ├── PromiseKeeper
-│           │   │           │   ├── config.lua
-│           │   │           │   ├── registry.lua
-│           │   │           │   ├── requests_store.lua
-│           │   │           │   ├── square_events.lua
-│           │   │           │   └── util.lua
-│           │   │           └── PromiseKeeper.lua
+│           │   │           ├── PromiseKeeper.lua
+│           │   │           └── PromiseKeeper
+│           │   │               ├── adapters
+│           │   │               ├── core
+│           │   │               ├── debug
+│           │   │               ├── factories.lua
+│           │   │               ├── policies
+│           │   │               ├── registries
+│           │   │               └── types.lua
 │           │   ├── mod.info
 │           │   └── poster.png
 │           └── common
@@ -98,7 +100,7 @@ tbd
 - **Naming:** `camelCase` for fields, options, and functions (to match PZ API)  `snake_case` for file-names.
 - **Backwards-compatibility** Hard refactors are allowed during early development. Compatibility shims or aliases are added only for public API calls — and only once the mod has active external users.
 - **Avoid:** `setmetatable` unless explicitly requested.
-- **Logging:** Don’t use `:` in log messages (prevents truncation in PZ logs). Use the logging from the shipped `util.lua`  
+- **Logging:** Don’t use `:` in log messages (prevents truncation in PZ logs). Use `require("DREAMBase/util")` helpers (`U.log`, `U.logCtx`) or `require("DREAMBase/log")` for tags/levels.
 - **Asserts:** Use `assert(...)` or  `U.assertf(...)` as a good practice to hedge against clear programming/contract errors only
 - **Graceful Degradation:** Prefer tolerant behavior for untestable or world-variance cases. Try to fall back and emit a single debug log, and proceed.  
 
