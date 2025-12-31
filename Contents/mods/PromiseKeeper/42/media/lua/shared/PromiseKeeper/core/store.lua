@@ -3,11 +3,8 @@ local U = require("PromiseKeeper/util")
 local Time = require("PromiseKeeper/time")
 local LOG_TAG = "PromiseKeeper store"
 
-local okLog, Log = pcall(require, "DREAMBase/log")
-local log = nil
-if okLog and type(Log) == "table" and type(Log.withTag) == "function" then
-	log = Log.withTag(LOG_TAG)
-end
+local Log = require("DREAMBase/log")
+local log = Log.withTag(LOG_TAG)
 
 local moduleName = ...
 local Store = {}
@@ -74,16 +71,12 @@ local function ensurePromise(namespace, promiseId)
 	entry.progress = entry.progress or {}
 	if entry.definition.situationMapId ~= nil then
 		entry.definition = { promiseId = promiseId }
-		if Store._internal.warnedLegacy[namespace] ~= true then
-			local msg = "legacy promise definitions dropped namespace=" .. namespace .. " promiseId=" .. promiseId
-			if log and type(log.warn) == "function" then
+			if Store._internal.warnedLegacy[namespace] ~= true then
+				local msg = "legacy promise definitions dropped namespace=" .. namespace .. " promiseId=" .. promiseId
 				log:warn("%s", msg)
-			else
-				U.log(LOG_TAG, msg)
+				Store._internal.warnedLegacy[namespace] = true
 			end
-			Store._internal.warnedLegacy[namespace] = true
 		end
-	end
 	if entry.progress.status == nil then
 		entry.progress.status = "active"
 	end

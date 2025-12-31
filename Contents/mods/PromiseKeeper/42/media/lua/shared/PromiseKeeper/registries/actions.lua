@@ -2,11 +2,8 @@
 local U = require("PromiseKeeper/util")
 local LOG_TAG = "PromiseKeeper actions"
 
-local okLog, Log = pcall(require, "DREAMBase/log")
-local log = nil
-if okLog and type(Log) == "table" and type(Log.withTag) == "function" then
-	log = Log.withTag(LOG_TAG)
-end
+local Log = require("DREAMBase/log")
+local log = Log.withTag(LOG_TAG)
 
 local moduleName = ...
 local Actions = {}
@@ -49,11 +46,7 @@ if Actions.define == nil then
 
 		if existed then
 			local msg = "action overwritten namespace=" .. namespace .. " id=" .. actionId
-			if log and type(log.warn) == "function" then
-				log:warn("%s", msg)
-			else
-				U.log(LOG_TAG, msg)
-			end
+			log:warn("%s", msg)
 		end
 	end
 end
