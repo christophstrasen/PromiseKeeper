@@ -1,5 +1,3 @@
-dofile("tests/unit/bootstrap.lua")
-
 local function resetModData()
 	local data = {}
 	_G.ModData = {
