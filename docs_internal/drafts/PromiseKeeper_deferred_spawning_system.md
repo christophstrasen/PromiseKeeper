@@ -182,7 +182,7 @@ Matcher functions receive `PKSquareCtx` plus the `matchParams` supplied at regis
 
 ## 6) Logging
 
-PromiseKeeper uses concise logging (no colons) via `PromiseKeeper/util`:
+PromiseKeeper uses concise logging (no colons) via `DREAMBase/util`:
 
 * `initialized` — store + scanner bootstrap complete.
 * `ensureAt queued id <id> key <fKey>`

@@ -1,5 +1,5 @@
 -- policies/chance.lua -- deterministic chance per occurranceKey.
-local U = require("PromiseKeeper/util")
+local U = require("DREAMBase/util")
 local M = {}
 
 local MODULUS = 4294967296 -- 2^32

@@ -1,5 +1,5 @@
 -- adapters/worldobserver.lua -- helpers for WorldObserver situation streams.
-local U = require("PromiseKeeper/util")
+local U = require("DREAMBase/util")
 
 local moduleName = ...
 local WOAdapter = {}

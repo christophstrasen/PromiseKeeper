@@ -1,7 +1,7 @@
 -- core/router.lua -- situationStream ingress, policy gating, action execution.
-local U = require("PromiseKeeper/util")
+local U = require("DREAMBase/util")
 local Store = require("PromiseKeeper/core/store")
-local Time = require("PromiseKeeper/time")
+local Time = require("DREAMBase/time_ms")
 local Actions = require("PromiseKeeper/registries/actions")
 local Situations = require("PromiseKeeper/registries/situations")
 local RunCount = require("PromiseKeeper/policies/run_count")

@@ -1,5 +1,5 @@
 -- factories.lua -- small situationStream helpers.
-local U = require("PromiseKeeper/util")
+local U = require("DREAMBase/util")
 local PZEvents = require("PromiseKeeper/adapters/pz_events")
 local LuaEventAdapter = require("PromiseKeeper/adapters/luaevent")
 

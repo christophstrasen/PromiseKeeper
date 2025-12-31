@@ -1,5 +1,5 @@
 -- registries/situations.lua -- situationKey -> buildSituationStreamFn (namespaced).
-local U = require("PromiseKeeper/util")
+local U = require("DREAMBase/util")
 local WOAdapter = require("PromiseKeeper/adapters/worldobserver")
 local LOG_TAG = "PromiseKeeper situations"
 

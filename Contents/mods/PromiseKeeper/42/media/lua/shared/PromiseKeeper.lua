@@ -1,5 +1,5 @@
 -- PromiseKeeper.lua -- v2 public API (namespaced, resumable promises).
-local U = require("PromiseKeeper/util")
+local U = require("DREAMBase/util")
 local Store = require("PromiseKeeper/core/store")
 local Router = require("PromiseKeeper/core/router")
 local Pacemaker = require("PromiseKeeper/core/pacemaker")

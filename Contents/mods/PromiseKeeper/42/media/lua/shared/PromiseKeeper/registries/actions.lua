@@ -1,5 +1,5 @@
 -- registries/actions.lua -- actionId -> actionFn (namespaced).
-local U = require("PromiseKeeper/util")
+local U = require("DREAMBase/util")
 local LOG_TAG = "PromiseKeeper actions"
 
 local Log = require("DREAMBase/log")

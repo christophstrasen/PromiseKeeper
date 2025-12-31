@@ -50,9 +50,9 @@ Adapters (bridge “situation sources” into PK streams of occurrences):
 Utilities / wiring:
 - `Contents/mods/PromiseKeeper/42/media/lua/shared/PromiseKeeper/factories.lua`
   - Thin helpers around adapters + occurrence shaping helpers (`makeCandidate`, `candidateOr`, …).
-- `Contents/mods/PromiseKeeper/42/media/lua/shared/PromiseKeeper/util.lua`
-  - Logging, event subscription helpers, safe calls, small utilities.
-- `Contents/mods/PromiseKeeper/42/media/lua/shared/PromiseKeeper/time.lua`
+- `require("DREAMBase/util")`
+  - Logging, event subscription helpers, safe calls, small utilities (shared across DREAM mods).
+- `require("DREAMBase/time_ms")`
   - Game-time helpers (used for cooldown / retry scheduling).
 
 Diagnostics:

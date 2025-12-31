@@ -636,7 +636,7 @@ If in doubt, remove more and start fresh.
 ### A) Keep vs remove (v1 codebase)
 
 Keep (with light refactor as needed):
-- `PromiseKeeper/util.lua` (hash32, logging helpers, small table utils) as the base utility module.
+- `DREAMBase/util.lua` (hash32, logging helpers, small table utils) as the base utility module.
 
 Remove or retire as legacy (v1-specific, square-first):
 - `PromiseKeeper.lua` (v1 public API: `registerFulfiller`, `ensureAt`, `ensureMatchingForSquare`)
@@ -657,7 +657,7 @@ Core:
 - `PromiseKeeper/core/store.lua` (ModData persistence: definitions + progress, broken reasons)
 - `PromiseKeeper/core/router.lua` (ingest, idempotence, policy application, action call envelope)
 - `PromiseKeeper/core/pacemaker.lua` (retry scheduling, `Events.OnTick` hook, "nextRetryDue" gating)
-- `PromiseKeeper/time.lua` (game millis helper; same shape as WorldObserver but implemented locally)
+- `DREAMBase/time_ms.lua` (game millis helper; shared across DREAM mods)
 
 Registries:
 - `PromiseKeeper/registries/actions.lua` (actionId -> actionFn)

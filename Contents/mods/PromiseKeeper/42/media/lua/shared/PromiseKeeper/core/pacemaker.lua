@@ -1,6 +1,6 @@
 -- core/pacemaker.lua -- OnTick retry scheduler.
-local U = require("PromiseKeeper/util")
-local Time = require("PromiseKeeper/time")
+local U = require("DREAMBase/util")
+local Time = require("DREAMBase/time_ms")
 local Router = require("PromiseKeeper/core/router")
 
 local LOG_TAG = "PromiseKeeper pacemaker"

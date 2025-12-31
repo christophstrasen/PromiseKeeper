@@ -1,6 +1,6 @@
 -- core/store.lua -- ModData persistence for PromiseKeeper v2.
-local U = require("PromiseKeeper/util")
-local Time = require("PromiseKeeper/time")
+local U = require("DREAMBase/util")
+local Time = require("DREAMBase/time_ms")
 local LOG_TAG = "PromiseKeeper store"
 
 local Log = require("DREAMBase/log")
