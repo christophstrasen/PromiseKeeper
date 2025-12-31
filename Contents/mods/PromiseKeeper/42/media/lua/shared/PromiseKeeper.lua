@@ -11,7 +11,13 @@ local PZEventsAdapter = require("PromiseKeeper/adapters/pz_events")
 local LuaEventAdapter = require("PromiseKeeper/adapters/luaevent")
 local Status = require("PromiseKeeper/debug/status")
 
-local LOG_TAG = "[PromiseKeeper]"
+local LOG_TAG = "PromiseKeeper"
+
+local okLog, Log = pcall(require, "DREAMBase/log")
+local log = nil
+if okLog and type(Log) == "table" and type(Log.withTag) == "function" then
+	log = Log.withTag(LOG_TAG)
+end
 
 local PromiseKeeper = {}
 
@@ -23,6 +29,10 @@ PromiseKeeper.adapters = {
 }
 
 local function logInfo(msg)
+	if log and type(log.info) == "function" then
+		log:info("%s", tostring(msg or ""))
+		return
+	end
 	U.log(LOG_TAG, msg)
 end
 

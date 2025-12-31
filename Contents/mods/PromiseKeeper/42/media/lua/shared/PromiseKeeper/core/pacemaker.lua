@@ -3,7 +3,13 @@ local U = require("PromiseKeeper/util")
 local Time = require("PromiseKeeper/time")
 local Router = require("PromiseKeeper/core/router")
 
-local LOG_TAG = "[PromiseKeeper pacemaker]"
+local LOG_TAG = "PromiseKeeper pacemaker"
+
+local okLog, Log = pcall(require, "DREAMBase/log")
+local log = nil
+if okLog and type(Log) == "table" and type(Log.withTag) == "function" then
+	log = Log.withTag(LOG_TAG)
+end
 
 local moduleName = ...
 local Pacemaker = {}
@@ -24,6 +30,10 @@ Pacemaker._internal = Pacemaker._internal or {
 }
 
 local function logInfo(msg)
+	if log and type(log.info) == "function" then
+		log:info("%s", tostring(msg or ""))
+		return
+	end
 	U.log(LOG_TAG, msg)
 end
 

@@ -1,6 +1,12 @@
 -- registries/actions.lua -- actionId -> actionFn (namespaced).
 local U = require("PromiseKeeper/util")
-local LOG_TAG = "[PromiseKeeper actions]"
+local LOG_TAG = "PromiseKeeper actions"
+
+local okLog, Log = pcall(require, "DREAMBase/log")
+local log = nil
+if okLog and type(Log) == "table" and type(Log.withTag) == "function" then
+	log = Log.withTag(LOG_TAG)
+end
 
 local moduleName = ...
 local Actions = {}
@@ -42,7 +48,12 @@ if Actions.define == nil then
 		bucket[actionId] = actionFn
 
 		if existed then
-			U.log(LOG_TAG, "action overwritten namespace=" .. namespace .. " id=" .. actionId)
+			local msg = "action overwritten namespace=" .. namespace .. " id=" .. actionId
+			if log and type(log.warn) == "function" then
+				log:warn("%s", msg)
+			else
+				U.log(LOG_TAG, msg)
+			end
 		end
 	end
 end
