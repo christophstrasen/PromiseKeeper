@@ -42,6 +42,13 @@ if LuaEventAdapter.fromEvent == nil then
 	---@param eventSource table
 	---@param mapEventToCandidate function
 	function LuaEventAdapter.fromEvent(eventSource, mapEventToCandidate)
+		-- Prefer DREAMBase when available (workspace/in-game); fall back to local implementation
+		-- so PromiseKeeper stays fully standalone for CI/tests.
+		local okBase, BaseEvents = pcall(require, "DREAMBase/events")
+		if okBase and type(BaseEvents) == "table" and type(BaseEvents.fromLuaEvent) == "function" then
+			return BaseEvents.fromLuaEvent(eventSource, mapEventToCandidate)
+		end
+
 		assertEvent(eventSource)
 		return {
 			subscribe = function(_, onNext)
