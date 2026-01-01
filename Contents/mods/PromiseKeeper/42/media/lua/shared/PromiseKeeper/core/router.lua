@@ -12,7 +12,6 @@ local Retry = require("PromiseKeeper/policies/retry")
 local LOG_TAG = "PromiseKeeper router"
 
 local Log = require("DREAMBase/log")
-local log = Log.withTag(LOG_TAG)
 
 local moduleName = ...
 local Router = {}
@@ -36,7 +35,39 @@ Router._runtime = Router._runtime or {
 }
 
 local function logInfo(msg)
-	log:info("%s", tostring(msg or ""))
+	U.log(LOG_TAG, tostring(msg or ""))
+end
+
+local function logWarn(msg)
+	Log.tagged("warn", LOG_TAG, "%s", tostring(msg or ""))
+end
+
+local function safeValue(value)
+	local text = tostring(value)
+	text = text:gsub(":", "COLON")
+	return text
+end
+
+local function formatPart(label, value)
+	if value == nil then
+		return nil
+	end
+	return label .. "=" .. safeValue(value)
+end
+
+local function appendParts(parts, extra)
+	for _, item in ipairs(extra or {}) do
+		if item then
+			parts[#parts + 1] = item
+		end
+	end
+end
+
+local function joinParts(parts)
+	if #parts == 0 then
+		return ""
+	end
+	return " " .. table.concat(parts, " ")
 end
 
 local function listSize(tbl)
@@ -165,29 +196,26 @@ local function getCandidate(namespace, promiseId, occurranceKey)
 	return nil
 end
 
-local function handlePolicySkip(namespace, promiseId, occurranceKey, code)
+local function handlePolicySkip(namespace, promiseId, occurranceKey, code, details)
 	Store.markWhyNot(namespace, promiseId, occurranceKey, code)
-	logInfo(("policy skip %s promiseId=%s occurranceKey=%s"):format(tostring(code), tostring(promiseId), tostring(occurranceKey)))
+	local parts = {
+		"promiseId=" .. safeValue(promiseId),
+		"occurranceKey=" .. safeValue(occurranceKey),
+	}
+	appendParts(parts, details)
+	logInfo("policy skip " .. safeValue(code) .. joinParts(parts))
 end
 
 local function handleMissing(namespace, promiseId, occurranceKey, code, note)
 	if occurranceKey ~= nil then
 		Store.markWhyNot(namespace, promiseId, occurranceKey, code)
 	end
-	if note then
-		logInfo(("drop %s promiseId=%s occurranceKey=%s %s"):format(
-			tostring(code),
-			tostring(promiseId),
-			tostring(occurranceKey),
-			tostring(note)
-		))
-	else
-		logInfo(("drop %s promiseId=%s occurranceKey=%s"):format(
-			tostring(code),
-			tostring(promiseId),
-			tostring(occurranceKey)
-		))
-	end
+	local parts = {
+		"promiseId=" .. safeValue(promiseId),
+		"occurranceKey=" .. safeValue(occurranceKey),
+	}
+	appendParts(parts, { formatPart("note", note) })
+	logWarn("drop " .. safeValue(code) .. joinParts(parts))
 end
 
 local function shouldPrune(progress, policy)
@@ -252,28 +280,47 @@ local function tryAction(namespace, promiseId, definition, progress, occurranceK
 
 	pruneExpiredOccurrences(progress, policy, nowMs)
 
-	local okRun, reason = RunCount.shouldRun(progress, policy)
+	local okRun, reason, runInfo = RunCount.shouldRun(progress, policy)
 	if not okRun then
-		handlePolicySkip(namespace, promiseId, occurranceKey, reason)
+		handlePolicySkip(namespace, promiseId, occurranceKey, reason, {
+			formatPart("totalRuns", runInfo and runInfo.totalRuns),
+			formatPart("maxRuns", runInfo and runInfo.maxRuns),
+		})
 		return false
 	end
 
-	local okCooldown, cooldownReason = Cooldown.shouldRun(progress, policy, nowMs)
+	local okCooldown, cooldownReason, cooldownInfo = Cooldown.shouldRun(progress, policy, nowMs)
 	if not okCooldown then
-		handlePolicySkip(namespace, promiseId, occurranceKey, cooldownReason)
+		handlePolicySkip(namespace, promiseId, occurranceKey, cooldownReason, {
+			formatPart("cooldownSeconds", cooldownInfo and cooldownInfo.cooldownSeconds),
+			formatPart("cooldownUntilMs", cooldownInfo and cooldownInfo.cooldownUntilMs),
+			formatPart("nowMs", cooldownInfo and cooldownInfo.nowMs),
+		})
 		return false
 	end
 
-	local okChance, chanceReason = Chance.shouldRun(namespace, promiseId, occurranceKey, policy)
+	local okChance, chanceReason, chanceInfo =
+		Chance.shouldRun(namespace, promiseId, occurranceKey, policy)
 	if not okChance then
-		handlePolicySkip(namespace, promiseId, occurranceKey, chanceReason)
+		handlePolicySkip(namespace, promiseId, occurranceKey, chanceReason, {
+			formatPart("chance", chanceInfo and chanceInfo.chance),
+			formatPart("roll", chanceInfo and chanceInfo.roll),
+			formatPart("hashRaw", chanceInfo and chanceInfo.hashRaw),
+			formatPart("hash", chanceInfo and chanceInfo.hash),
+		})
 		return false
 	end
 
 	local occ = Store.getOccurrence(namespace, promiseId, occurranceKey, true)
-	local okRetry, retryReason = Retry.shouldAttempt(occ, policy, nowMs)
+	local okRetry, retryReason, retryInfo = Retry.shouldAttempt(occ, policy, nowMs)
 	if not okRetry then
-		handlePolicySkip(namespace, promiseId, occurranceKey, retryReason)
+		handlePolicySkip(namespace, promiseId, occurranceKey, retryReason, {
+			formatPart("retryCounter", retryInfo and retryInfo.retryCounter),
+			formatPart("maxRetries", retryInfo and retryInfo.maxRetries),
+			formatPart("delaySeconds", retryInfo and retryInfo.delaySeconds),
+			formatPart("nextRetryAtMs", retryInfo and retryInfo.nextRetryAtMs),
+			formatPart("nowMs", retryInfo and retryInfo.nowMs),
+		})
 		if retryReason == "retries_exhausted" then
 			occ.state = "done"
 			clearCandidate(namespace, promiseId, occurranceKey)
@@ -305,6 +352,24 @@ local function tryAction(namespace, promiseId, definition, progress, occurranceK
 		clearRetry(namespace, promiseId, occurranceKey)
 		clearCandidate(namespace, promiseId, occurranceKey)
 
+		local successParts = {
+			"promiseId=" .. safeValue(promiseId),
+			"occurranceKey=" .. safeValue(occurranceKey),
+			"actionId=" .. safeValue(definition.actionId),
+			"situationKey=" .. safeValue(definition.situationKey),
+		}
+		appendParts(successParts, {
+			formatPart("chance", chanceInfo and chanceInfo.chance),
+			formatPart("roll", chanceInfo and chanceInfo.roll),
+			formatPart("hashRaw", chanceInfo and chanceInfo.hashRaw),
+			formatPart("hash", chanceInfo and chanceInfo.hash),
+		})
+		local progressNow = Store.getPromise(namespace, promiseId)
+		appendParts(successParts, {
+			formatPart("totalRuns", progressNow and progressNow.progress and progressNow.progress.totalRuns),
+		})
+		logInfo("action ok" .. joinParts(successParts))
+
 		local cooldownUntil = Cooldown.nextCooldownUntil(nowMs, policy)
 		if cooldownUntil > 0 then
 			Store.setCooldownUntil(namespace, promiseId, cooldownUntil)
@@ -322,10 +387,10 @@ local function tryAction(namespace, promiseId, definition, progress, occurranceK
 	end
 
 	Store.markWhyNot(namespace, promiseId, occurranceKey, "action_error")
-	logInfo(("action error promiseId=%s occurranceKey=%s err=%s"):format(
-		tostring(promiseId),
-		tostring(occurranceKey),
-		tostring(err)
+	logWarn(("action error promiseId=%s occurranceKey=%s err=%s"):format(
+		safeValue(promiseId),
+		safeValue(occurranceKey),
+		safeValue(err)
 	))
 
 	local nextRetryAtMs = Retry.nextRetryAt(nowMs, policy)
@@ -372,9 +437,9 @@ if Router.handleCandidate == nil then
 
 		local entry = Store.getPromise(namespace, promiseId)
 		if entry == nil then
-			logInfo(("drop candidate promise missing promiseId=%s occurranceKey=%s"):format(
-				tostring(promiseId),
-				tostring(occurranceKey)
+			logInfo(("drop candidate missing promise promiseId=%s occurranceKey=%s"):format(
+				safeValue(promiseId),
+				safeValue(occurranceKey)
 			))
 			return
 		end
@@ -382,9 +447,9 @@ if Router.handleCandidate == nil then
 		local progress = entry.progress or {}
 		if progress.status == "broken" or progress.status == "stopped" then
 			logInfo(("drop candidate promise %s promiseId=%s occurranceKey=%s"):format(
-				tostring(progress.status),
-				tostring(promiseId),
-				tostring(occurranceKey)
+				safeValue(progress.status),
+				safeValue(promiseId),
+				safeValue(occurranceKey)
 			))
 			return
 		end
@@ -434,7 +499,7 @@ local function rememberOne(namespace, promiseId, entry, opts)
 
 	if type(situationKey) ~= "string" or situationKey == "" then
 		Store.markBroken(namespace, promiseId, "missing_situation_key", "situationKey missing")
-		logInfo(("broken missing situationKey promiseId=%s"):format(tostring(promiseId)))
+		logWarn(("broken missing situationKey promiseId=%s"):format(safeValue(promiseId)))
 		if opts and opts.throwOnError then
 			error("missing_situation_key", 2)
 		end
@@ -442,7 +507,7 @@ local function rememberOne(namespace, promiseId, entry, opts)
 	end
 	if type(actionId) ~= "string" or actionId == "" then
 		Store.markBroken(namespace, promiseId, "missing_action_id", "actionId missing")
-		logInfo(("broken missing actionId promiseId=%s"):format(tostring(promiseId)))
+		logWarn(("broken missing actionId promiseId=%s"):format(safeValue(promiseId)))
 		if opts and opts.throwOnError then
 			error("missing_action_id", 2)
 		end
@@ -451,7 +516,7 @@ local function rememberOne(namespace, promiseId, entry, opts)
 
 	if def.policy ~= nil and type(def.policy) ~= "table" then
 		Store.markBroken(namespace, promiseId, "invalid_policy", "policy must be a table or nil")
-		logInfo(("broken invalid policy promiseId=%s"):format(tostring(promiseId)))
+		logWarn(("broken invalid policy promiseId=%s"):format(safeValue(promiseId)))
 		if opts and opts.throwOnError then
 			error("invalid_policy", 2)
 		end
@@ -461,9 +526,9 @@ local function rememberOne(namespace, promiseId, entry, opts)
 	local actionFn = Actions.get(namespace, actionId)
 	if type(actionFn) ~= "function" then
 		Store.markBroken(namespace, promiseId, "missing_action_id", "actionId not registered")
-		logInfo(("broken missing action registration promiseId=%s actionId=%s"):format(
-			tostring(promiseId),
-			tostring(actionId)
+		logWarn(("broken missing action registration promiseId=%s actionId=%s"):format(
+			safeValue(promiseId),
+			safeValue(actionId)
 		))
 		if opts and opts.throwOnError then
 			error("missing_action_id", 2)
@@ -474,9 +539,9 @@ local function rememberOne(namespace, promiseId, entry, opts)
 	local factoryFn = Situations.resolve(namespace, situationKey)
 	if type(factoryFn) ~= "function" then
 		Store.markBroken(namespace, promiseId, "missing_situation_key", "situationKey not registered")
-		logInfo(("broken missing situation registration promiseId=%s situationKey=%s"):format(
-			tostring(promiseId),
-			tostring(situationKey)
+		logWarn(("broken missing situation registration promiseId=%s situationKey=%s"):format(
+			safeValue(promiseId),
+			safeValue(situationKey)
 		))
 		if opts and opts.throwOnError then
 			error("missing_situation_key", 2)
@@ -494,7 +559,10 @@ local function rememberOne(namespace, promiseId, entry, opts)
 			reason = "missing_situation_key"
 		end
 		Store.markBroken(namespace, promiseId, reason, errMsg)
-		logInfo(("broken remember failed promiseId=%s reason=%s"):format(tostring(promiseId), tostring(reason)))
+		logWarn(("broken remember failed promiseId=%s reason=%s"):format(
+			safeValue(promiseId),
+			safeValue(reason)
+		))
 		if opts and opts.throwOnError then
 			error(errMsg, 2)
 		end
@@ -512,9 +580,9 @@ local function rememberOne(namespace, promiseId, entry, opts)
 
 	if not unsubscribe then
 		Store.markBroken(namespace, promiseId, reason or "invalid_situation_stream", "subscribe failed")
-		logInfo(("broken subscribe failed promiseId=%s reason=%s"):format(
-			tostring(promiseId),
-			tostring(reason or "invalid_situation_stream")
+		logWarn(("broken subscribe failed promiseId=%s reason=%s"):format(
+			safeValue(promiseId),
+			safeValue(reason or "invalid_situation_stream")
 		))
 		if opts and opts.throwOnError then
 			error(reason or "subscribe_failed", 2)

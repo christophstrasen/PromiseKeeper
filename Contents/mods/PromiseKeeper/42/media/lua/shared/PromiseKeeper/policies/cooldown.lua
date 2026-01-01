@@ -3,14 +3,19 @@ local M = {}
 
 function M.shouldRun(progress, policy, nowMs)
 	local cooldownSeconds = tonumber(policy and policy.cooldownSeconds) or 0
-	if cooldownSeconds <= 0 then
-		return true, nil
-	end
 	local untilMs = tonumber(progress and progress.cooldownUntilMs) or 0
-	if nowMs and untilMs > nowMs then
-		return false, "policy_skip_cooldown"
+	local info = {
+		cooldownSeconds = cooldownSeconds,
+		cooldownUntilMs = untilMs,
+		nowMs = nowMs,
+	}
+	if cooldownSeconds <= 0 then
+		return true, nil, info
 	end
-	return true, nil
+	if nowMs and untilMs > nowMs then
+		return false, "policy_skip_cooldown", info
+	end
+	return true, nil, info
 end
 
 function M.nextCooldownUntil(nowMs, policy)

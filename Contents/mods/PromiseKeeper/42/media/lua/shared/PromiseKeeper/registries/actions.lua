@@ -3,7 +3,10 @@ local U = require("DREAMBase/util")
 local LOG_TAG = "PromiseKeeper actions"
 
 local Log = require("DREAMBase/log")
-local log = Log.withTag(LOG_TAG)
+
+local function logWarn(msg)
+	Log.tagged("warn", LOG_TAG, "%s", tostring(msg or ""))
+end
 
 local moduleName = ...
 local Actions = {}
@@ -46,7 +49,7 @@ if Actions.define == nil then
 
 		if existed then
 			local msg = "action overwritten namespace=" .. namespace .. " id=" .. actionId
-			log:warn("%s", msg)
+			logWarn(msg)
 		end
 	end
 end

@@ -4,7 +4,6 @@ local Time = require("DREAMBase/time_ms")
 local LOG_TAG = "PromiseKeeper store"
 
 local Log = require("DREAMBase/log")
-local log = Log.withTag(LOG_TAG)
 
 local moduleName = ...
 local Store = {}
@@ -73,7 +72,7 @@ local function ensurePromise(namespace, promiseId)
 		entry.definition = { promiseId = promiseId }
 			if Store._internal.warnedLegacy[namespace] ~= true then
 				local msg = "legacy promise definitions dropped namespace=" .. namespace .. " promiseId=" .. promiseId
-				log:warn("%s", msg)
+				Log.tagged("warn", LOG_TAG, "%s", msg)
 				Store._internal.warnedLegacy[namespace] = true
 			end
 		end

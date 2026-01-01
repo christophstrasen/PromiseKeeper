@@ -4,7 +4,10 @@ local WOAdapter = require("PromiseKeeper/adapters/worldobserver")
 local LOG_TAG = "PromiseKeeper situations"
 
 local Log = require("DREAMBase/log")
-local log = Log.withTag(LOG_TAG)
+
+local function logWarn(msg)
+	Log.tagged("warn", LOG_TAG, "%s", tostring(msg or ""))
+end
 
 local moduleName = ...
 local Situations = {}
@@ -48,7 +51,7 @@ if Situations.define == nil then
 
 		if existed then
 			local msg = "situation overwritten namespace=" .. namespace .. " situationKey=" .. situationKey
-			log:warn("%s", msg)
+			logWarn(msg)
 		end
 	end
 end

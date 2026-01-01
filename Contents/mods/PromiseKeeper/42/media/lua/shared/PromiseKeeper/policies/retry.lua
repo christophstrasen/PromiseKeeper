@@ -12,18 +12,25 @@ function M.shouldAttempt(occurrence, policy, nowMs)
 
 	local retryCounter = tonumber(occurrence and occurrence.retryCounter) or 0
 	local nextRetryAtMs = tonumber(occurrence and occurrence.nextRetryAtMs) or 0
+	local info = {
+		retryCounter = retryCounter,
+		maxRetries = maxRetries,
+		delaySeconds = delaySeconds,
+		nextRetryAtMs = nextRetryAtMs,
+		nowMs = nowMs,
+	}
 
 	-- `retryCounter` counts *failures*, so `maxRetries = 0` still allows the first attempt
 	-- (it just disables any retry after the first failure).
 	if maxRetries >= 0 and retryCounter > maxRetries then
-		return false, "retries_exhausted"
+		return false, "retries_exhausted", info
 	end
 
 	if delaySeconds > 0 and nextRetryAtMs > 0 and nowMs and nextRetryAtMs > nowMs then
-		return false, "retry_waiting"
+		return false, "retry_waiting", info
 	end
 
-	return true, nil
+	return true, nil, info
 end
 
 function M.nextRetryAt(nowMs, policy)

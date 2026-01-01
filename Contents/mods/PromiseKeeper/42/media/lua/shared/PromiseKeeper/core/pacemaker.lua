@@ -5,9 +5,6 @@ local Router = require("PromiseKeeper/core/router")
 
 local LOG_TAG = "PromiseKeeper pacemaker"
 
-local Log = require("DREAMBase/log")
-local log = Log.withTag(LOG_TAG)
-
 local moduleName = ...
 local Pacemaker = {}
 if type(moduleName) == "string" then
@@ -27,7 +24,7 @@ Pacemaker._internal = Pacemaker._internal or {
 }
 
 local function logInfo(msg)
-	log:info("%s", tostring(msg or ""))
+	U.log(LOG_TAG, tostring(msg or ""))
 end
 
 if Pacemaker.tick == nil then

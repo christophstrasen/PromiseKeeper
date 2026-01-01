@@ -9,19 +9,23 @@ function M.shouldRun(namespace, promiseId, occurranceKey, policy)
 	if chance == nil then
 		chance = 1
 	end
+	local info = { chance = chance }
 	if chance >= 1 then
-		return true, nil
+		return true, nil, info
 	end
 	if chance <= 0 then
-		return false, "policy_skip_chance"
+		return false, "policy_skip_chance", info
 	end
 	local key = U.buildKey(namespace, promiseId, occurranceKey)
-	local h = U.hash32(key)
+	-- Use Murmur32 for stronger avalanche so nearby keys do not correlate.
+	local h = U.murmur32(key)
 	local roll = h / MODULUS
+	info.hash = h
+	info.roll = roll
 	if roll < chance then
-		return true, nil
+		return true, nil, info
 	end
-	return false, "policy_skip_chance"
+	return false, "policy_skip_chance", info
 end
 
 return M
