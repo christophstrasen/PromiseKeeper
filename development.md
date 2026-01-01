@@ -3,9 +3,23 @@
 PromiseKeeper is part of the DREAM mod family (Build 42):
 - DREAM-Workspace (multi-repo convenience): https://github.com/christophstrasen/DREAM-Workspace
 
-## Quickstart (single repo)
+Prereqs (for the `dev/` scripts): `rsync`, `inotifywait` (`inotify-tools`), `inkscape`.
 
-Prereqs: `rsync`, `inotifywait` (`inotify-tools`), `inkscape`.
+## Sync
+
+Deploy to your local Workshop wrapper folder (default):
+
+```bash
+./dev/sync-workshop.sh
+```
+
+Optional: deploy to `~/Zomboid/mods` instead:
+
+```bash
+./dev/sync-mods.sh
+```
+
+## Watch
 
 Watch + deploy (default: Workshop wrapper under `~/Zomboid/Workshop`):
 
@@ -24,5 +38,7 @@ TARGET=mods ./dev/watch.sh
 PromiseKeeper has headless unit tests:
 
 ```bash
-busted tests
+busted --helper=tests/helper.lua tests/unit
 ```
+
+Note: tests assume DREAMBase is available at `../DREAMBase` (DREAM-Workspace layout) or `external/DREAMBase`.

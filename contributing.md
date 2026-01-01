@@ -34,5 +34,4 @@ Maintainer convenience repo (multi-repo sync/watch): https://github.com/christop
 - Keep changes small and easy to review.
 - Keep the public API stable and coherent (unless we explicitly do a hard-cut refactor).
 - Prefer deterministic behavior and persisted state clarity.
-- Add or update `busted` tests when changing logic:
-  - Run: `busted tests`
+- Add or update `busted` tests when changing logic and run the test suite (see `development.md`).
