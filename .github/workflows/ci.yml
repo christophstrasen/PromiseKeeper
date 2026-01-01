@@ -21,8 +21,10 @@ jobs:
       - name: Set up LuaRocks
         uses: leafo/gh-actions-luarocks@v4
 
-      - name: Install busted
-        run: luarocks install busted
+      - name: Install tools
+        run: |
+          luarocks install luacheck
+          luarocks install busted
 
       - name: Checkout DREAMBase (required dependency)
         run: |
@@ -32,6 +34,10 @@ jobs:
         run: |
           cd external/DREAMBase
           busted --helper=tests/helper.lua tests/unit
+
+      - name: Lint (luacheck)
+        run: |
+          luacheck Contents/mods/PromiseKeeper/42/media/lua/shared/PromiseKeeper Contents/mods/PromiseKeeper/42/media/lua/shared/PromiseKeeper.lua
 
       - name: Run PromiseKeeper unit tests
         run: |

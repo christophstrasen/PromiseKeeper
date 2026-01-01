@@ -1,7 +1,7 @@
 -- policies/expiry.lua -- per-promise expiry (pruning), optional.
 local M = {}
 
-function M.isExpired(_progress, policy, nowMs)
+function M.isExpired(progress, policy, nowMs)
 	local expiry = policy and policy.expiry or nil
 	if expiry and expiry.enabled == false then
 		return false
@@ -10,7 +10,7 @@ function M.isExpired(_progress, policy, nowMs)
 	if ttlSeconds <= 0 then
 		return false
 	end
-	local createdAtMs = tonumber(_progress and _progress.createdAtMs) or 0
+	local createdAtMs = tonumber(progress and progress.createdAtMs) or 0
 	if createdAtMs <= 0 or not nowMs then
 		return false
 	end

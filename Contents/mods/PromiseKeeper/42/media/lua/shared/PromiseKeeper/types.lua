@@ -65,7 +65,7 @@
 ---@field actions table
 ---@field situations table
 ---@field promise fun(self:PKNamespaceHandle, spec:PKPromiseSpec): PKPromiseHandle
----@overload fun(self:PKNamespaceHandle, promiseId:string, situationKey:string, situationArgs:table|nil, actionId:string, actionArgs:table|nil, policy:PKPolicy|nil): PKPromiseHandle
+---@overload fun(self:PKNamespaceHandle,string,string,table|nil,string,table|nil,PKPolicy|nil):PKPromiseHandle
 ---@field remember fun(self:PKNamespaceHandle)
 ---@field rememberAll fun(self:PKNamespaceHandle)
 ---@field forget fun(self:PKNamespaceHandle, promiseId:string)

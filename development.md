@@ -42,3 +42,25 @@ busted --helper=tests/helper.lua tests/unit
 ```
 
 Note: tests assume DREAMBase is available at `../DREAMBase` (DREAM-Workspace layout) or `external/DREAMBase`.
+
+## Lint
+
+```bash
+luacheck Contents/mods/PromiseKeeper/42/media/lua/shared/PromiseKeeper Contents/mods/PromiseKeeper/42/media/lua/shared/PromiseKeeper.lua
+```
+
+## Pre-commit hooks
+
+This repo ships a `.pre-commit-config.yaml` mirroring CI (`luacheck` + `busted`).
+
+Enable hooks:
+
+```bash
+pre-commit install
+```
+
+Run on demand:
+
+```bash
+pre-commit run --all-files
+```
