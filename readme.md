@@ -8,7 +8,7 @@
 
 ---
 
-[Steam Workshop → [42SP] PromiseKeeper](TBDLink)
+[Steam Workshop → [42SP] PromiseKeeper](https://steamcommunity.com/sharedfiles/filedetails/?id=3637573743)
 
 ---
 

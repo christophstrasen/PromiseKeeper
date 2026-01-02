@@ -1,5 +1,5 @@
 PromiseKeeper [42SP]
 -------------
-Workshop ID: TBD
+Workshop ID: 3637573743
 Mod ID: PromiseKeeper
-Steam Page: TBD
+Steam Page: https://steamcommunity.com/sharedfiles/filedetails/?id=3637573743

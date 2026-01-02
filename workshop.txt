@@ -1,33 +1,34 @@
 version=1
+id=3637573743
 title=[42SP] PromiseKeeper
 description=PromiseKeeper - Situation-to-action orchestration for Project Zomboid (Build 42, Single Player)
-
-NOT TESTED IN MULTIPLAYER. DON'T USE THERE. thx.
-
-It listens for situations from your sources (WorldObserver streams or Events.*),
-runs actions according to your policy, and remembers progress across reloads.
-
-This is a developer library, not gameplay content. It does nothing on its own.
-
-Try out PromiseKeeper when you need:
-
-- “run this action once per <player/square/zombie/...>, even after reload”.
-- a small policy surface (max runs, deterministic chance, cooldown, retry delay).
-- to pair **WorldObserver** (sensing) with persisted actions.
-
-Don’t use it when:
-
-- Your logic is purely local and ephemeral (no persistence needed; a direct event handler is enough).
-- You don't like "framework-y" or declarative coding conventions.
-- You need tested multiplayer guarantees.
-
-GitHub (docs, source, examples):
-https://github.com/christophstrasen/PromiseKeeper
-
-Dependencies (required by mod.info):
-- StarlitLibrary
-- DoggyLibrary
-- DREAMBase
-
-tags=Library;Utility;Build 42;Development
+description=
+description=NOT TESTED IN MULTIPLAYER. DON'T USE THERE. thx.
+description=
+description=It listens for situations from your sources (WorldObserver streams or Events.*),
+description=runs actions according to your policy, and remembers progress across reloads.
+description=
+description=This is a developer library, not gameplay content. It does nothing on its own.
+description=
+description=Try out PromiseKeeper when you need:
+description=
+description=- “run this action once per <player/square/zombie/...>, even after reload”.
+description=- a small policy surface (max runs, deterministic chance, cooldown, retry delay).
+description=- to pair **WorldObserver** (sensing) with persisted actions.
+description=
+description=Don’t use it when:
+description=
+description=- Your logic is purely local and ephemeral (no persistence needed; a direct event handler is enough).
+description=- You don't like "framework-y" or declarative coding conventions.
+description=- You need tested multiplayer guarantees.
+description=
+description=GitHub (docs, source, examples):
+description=https://github.com/christophstrasen/PromiseKeeper
+description=
+description=Dependencies (required by mod.info):
+description=- StarlitLibrary
+description=- DoggyLibrary
+description=- DREAMBase
+description=
+tags=Framework;Build 42;
 visibility=Public
