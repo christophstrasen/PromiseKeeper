@@ -4,7 +4,6 @@ description=PromiseKeeper - Situation-to-action orchestration for Project Zomboi
 
 NOT TESTED IN MULTIPLAYER. DON'T USE THERE. thx.
 
-PromiseKeeper is a persistence-first library for mid-level Lua mod developers.
 It listens for situations from your sources (WorldObserver streams or Events.*),
 runs actions according to your policy, and remembers progress across reloads.
 
