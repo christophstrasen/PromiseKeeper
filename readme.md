@@ -1,9 +1,16 @@
 # PromiseKeeper
 
-*A stateful situation-to-action orchestration library for **Project Zomboid (Build 42)**.*
-It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.
+*A stateful situation-to-action orchestration library for **Project Zomboid (Build 42)*** - part of the [DREAM](https://github.com/christophstrasen/DREAM) family.
+
+> It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.
 
 [![CI](https://github.com/christophstrasen/PromiseKeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/christophstrasen/PromiseKeeper/actions/workflows/ci.yml)
+
+---
+
+[Steam Workshop → [42SP] PromiseKeeper](TBDLink)
+
+---
 
 ## Who is this for?
 
@@ -81,7 +88,7 @@ PromiseKeeper is a persistent rule runner:
 - You declare a **promise** (`promiseId`) that ties situation → action with a **policy** (chance, cooldown,
   retries, max runs).
 
-Policy deceissions are deterministic by default: `chance` is deterministic per (`namespace`, `promiseId`, `occurranceKey`) so the same occurrence does not re-roll each time it is observed.
+Policy decisions are deterministic by default: `chance` is deterministic per (`namespace`, `promiseId`, `occurranceKey`) so the same occurrence does not re-roll each time it is observed.
 
 More detail: [Mental model](docs/concepts/mental_model.md) and [IDs](docs/concepts/ids.md).
 
@@ -104,7 +111,7 @@ Internal docs (implementation notes, not a stable learning path):
 
 - **Persistence + idempotence:** remembers progress per `occurranceKey` across reloads.
 - **Deterministic policy:** chance is deterministic per key (no re-rolls), cooldown is per promise.
-- **“It’s reactive:** PromiseKeeper doesn’t poll or scan. It runs as soon as your situation source emits, for events that means in the same tick the event has been emmitted.
+- **It’s reactive:** PromiseKeeper doesn’t poll or scan. It runs as soon as your situation source emits, for events that means in the same tick the event has been emitted.
 - **Debuggable:** Broken promises keep a reason via `whyNot`.
 - **Light on world logic:** PromiseKeeper does not probe/scan; it only runs actions when situations arrive.
 - **Plays well with WorldObserver:** treat WO situations as already actionable (subject = the full observation).
