@@ -24,18 +24,7 @@ Don’t use it when:
 - You don't like "framework-y" or declarative coding conventions.
 - You need tested multiplayer guarantees.
 
-## Mental model (the “when this, then that” part)
-
-PromiseKeeper is a persistent rule runner:
-
-- You define a **situation** (`situationKey`) that emits occurrences (each with an `occurranceKey`).
-- You define an **action** (`actionId`) that runs on the occurrence `subject`.
-- You declare a **promise** (`promiseId`) that ties situation → action with a **policy** (chance, cooldown,
-  retries, max runs).
-
-Policy deceissions are deterministic by default: `chance` is deterministic per (`namespace`, `promiseId`, `occurranceKey`) so the same occurrence does not re-roll each time it is observed.
-
-More detail: `docs/concepts/mental_model.md` and `docs/concepts/ids.md`.
+---
 
 ## Quickstart
 
@@ -77,18 +66,39 @@ To resume stored promises after reload, register situations + actions at game st
 pk.remember()
 ```
 
+---
+
+## Overview
+
+![PromiseKeeper architecture diagram](diagrams/architecture_pk.png)
+
+## Mental model (the “when this, then that” part)
+
+PromiseKeeper is a persistent rule runner:
+
+- You define a **situation** (`situationKey`) that emits occurrences (each with an `occurranceKey`).
+- You define an **action** (`actionId`) that runs on the occurrence `subject`.
+- You declare a **promise** (`promiseId`) that ties situation → action with a **policy** (chance, cooldown,
+  retries, max runs).
+
+Policy deceissions are deterministic by default: `chance` is deterministic per (`namespace`, `promiseId`, `occurranceKey`) so the same occurrence does not re-roll each time it is observed.
+
+More detail: [Mental model](docs/concepts/mental_model.md) and [IDs](docs/concepts/ids.md).
+
+---
+
 ## Documentation
 
 User docs:
-- `docs/index.md` (start here)
-- `docs/quickstart.md`
-- `docs/reference/api.md`
+- [Docs index](docs/index.md) (start here)
+- [Quickstart](docs/quickstart.md)
+- [API reference](docs/reference/api.md)
 
 Internal docs (implementation notes, not a stable learning path):
-- `docs_internal/vision.md`
-- `docs_internal/architecture.md`
-- `docs_internal/api.md`
-- `docs_internal/project_history.md`
+- [Vision](docs_internal/vision.md)
+- [Architecture](docs_internal/architecture.md)
+- [API notes](docs_internal/api.md)
+- [Project history](docs_internal/project_history.md)
 
 ## What’s neat or at least unique about PromiseKeeper
 
@@ -101,7 +111,7 @@ Internal docs (implementation notes, not a stable learning path):
 
 ## Contributing
 
-See `contributing.md` and `docs_internal/developing.md`.
+See [contributing.md](contributing.md) and [developing.md](docs_internal/developing.md).
 
 ## AI disclosure
 
@@ -115,4 +125,4 @@ PromiseKeeper is not affiliated with The Indie Stone. Project Zomboid is a trade
 
 ## License
 
-MIT (see `LICENSE`).
+MIT (see [LICENSE](LICENSE)).
