@@ -1,34 +1,122 @@
 version=1
 id=3637573743
-title=[42SP] PromiseKeeper
-description=PromiseKeeper - Situation-to-action orchestration for Project Zomboid (Build 42, Single Player)
+title=[42SP] PromiseKeeper - A stateful situation-to-action orchestrator.
+description=[h1]PromiseKeeper[/h1]
 description=
-description=NOT TESTED IN MULTIPLAYER. DON'T USE THERE. thx.
+description=[i]A stateful situation-to-action orchestration library for [b]Project Zomboid (Build 42)[/b][/i] - part of the [url=https://github.com/christophstrasen/DREAM]DREAM[/url] family.
 description=
-description=It listens for situations from your sources (WorldObserver streams or Events.*),
-description=runs actions according to your policy, and remembers progress across reloads.
+description=[quote]
+description=It listens for situations from your sources (WorldObserver streams or event emitters), runs actions according to your rules, and remembers progress across reloads.
+description=[/quote]
 description=
-description=This is a developer library, not gameplay content. It does nothing on its own.
+description=[h2]Who is this for?[/h2]
+description=PromiseKeeper is for modders who:
+description=[list]
+description=[*]can write `Events.*` handlers, but don’t want to hand-roll persistence + “only once” logic,
+description=[*]want a clean separation of concerns between [b]sensing[/b] (finding situations) and [b]acting[/b] (mutating game state),
+description=[*]want deterministic, debuggable behavior (`whyNot`, retries, cooldown, chance).
+description=[/list]
 description=
-description=Try out PromiseKeeper when you need:
-description=
-description=- “run this action once per <player/square/zombie/...>, even after reload”.
-description=- a small policy surface (max runs, deterministic chance, cooldown, retry delay).
-description=- to pair **WorldObserver** (sensing) with persisted actions.
+description=[h2]When to use it (and when not)[/h2]
+description=Use PromiseKeeper when you need:
+description=[list]
+description=[*]“run this action once per <player/square/zombie/...>, even after reload”.
+description=[*]a small policy surface (max runs, deterministic chance, cooldown, retry delay).
+description=[*]to pair [b]WorldObserver[/b] (sensing) with persisted actions.
+description=[/list]
 description=
 description=Don’t use it when:
+description=[list]
+description=[*]Your logic is purely local and ephemeral (no persistence needed; a direct event handler is enough).
+description=[*]You don't like "framework-y" or declarative coding conventions.
+description=[*]You need tested multiplayer guarantees.
+description=[/list]
 description=
-description=- Your logic is purely local and ephemeral (no persistence needed; a direct event handler is enough).
-description=- You don't like "framework-y" or declarative coding conventions.
-description=- You need tested multiplayer guarantees.
+description=[hr][/hr]
 description=
-description=GitHub (docs, source, examples):
-description=https://github.com/christophstrasen/PromiseKeeper
+description=[h2]Quickstart[/h2]
+description=Copy/paste into the Project Zomboid debug console (in-game):
 description=
-description=Dependencies (required by mod.info):
-description=- StarlitLibrary
-description=- DoggyLibrary
-description=- DREAMBase
+description=[code]
+description=local PromiseKeeper = require("PromiseKeeper")
+description=local pk = PromiseKeeper.namespace("MyMod")
 description=
+description=-- 1) Define a situation (events need a mapper to provide occurranceKey + subject)
+description=pk.situations.defineFromPZEvent("onTickPlayer", Events.OnTick, function(_args)
+description=  local player = getPlayer()
+description=  return {
+description=    occurranceKey = "player:" .. tostring(player:getPlayerNum() or 0),
+description=    subject = player,
+description=  }
+description=end)
+description=
+description=-- 2) Define an action
+description=pk.actions.define("logTick", function(subject, _actionArgs, promiseCtx)
+description=  print(("[PK] tick occurranceKey=%s subject=%s"):format(
+description=    tostring(promiseCtx.occurranceKey),
+description=    tostring(subject)
+description=  ))
+description=end)
+description=
+description=-- 3) Declare a promise (this stores the definition and starts listening immediately)
+description=promise = pk.promise({
+description=  promiseId = "logTickOnce",
+description=  situationKey = "onTickPlayer",
+description=  actionId = "logTick",
+description=  policy = { maxRuns = 1, chance = 1 },
+description=})
+description=[/code]
+description=
+description=To resume stored promises after reload, register situations + actions at game startup and call:
+description=
+description=[code]
+description=pk.remember()
+description=[/code]
+description=
+description=[h2]Overview[/h2]
+description=[img]https://raw.githubusercontent.com/christophstrasen/PromiseKeeper/main/diagrams/architecture_pk.png[/img]
+description=
+description=[h2]Mental model (the “when this, then that” part)[/h2]
+description=PromiseKeeper is a persistent rule runner:
+description=
+description=[list]
+description=[*]You define a [b]situation[/b] (`situationKey`) that emits occurrences (each with an `occurranceKey`).
+description=[*]You define an [b]action[/b] (`actionId`) that runs on the occurrence `subject`.
+description=[*]You declare a [b]promise[/b] (`promiseId`) that ties situation → action with a [b]policy[/b] (chance, cooldown,
+description=retries, max runs).
+description=[/list]
+description=
+description=Policy decisions are deterministic by default: `chance` is deterministic per (`namespace`, `promiseId`, `occurranceKey`) so the same occurrence does not re-roll each time it is observed.
+description=
+description=More detail: [url=https://github.com/christophstrasen/PromiseKeeper/blob/main/docs/concepts/mental_model.md]Mental model[/url] and [url=https://github.com/christophstrasen/PromiseKeeper/blob/main/docs/concepts/ids.md]IDs[/url].
+description=
+description=[h2]Documentation[/h2]
+description=User docs:
+description=[b]GitHub:[/b] [url=https://github.com/christophstrasen/PromiseKeeper]https://github.com/christophstrasen/PromiseKeeper[/url] (start here)
+description=[list]
+description=[*][url=https://github.com/christophstrasen/PromiseKeeper/blob/main/docs/index.md]Docs index[/url]
+description=[*][url=https://github.com/christophstrasen/PromiseKeeper/blob/main/docs/quickstart.md]Quickstart[/url]
+description=[*][url=https://github.com/christophstrasen/PromiseKeeper/blob/main/docs/reference/api.md]API reference[/url]
+description=[/list]
+description=
+description=[h2]What’s neat or at least unique about PromiseKeeper[/h2]
+description=[list]
+description=[*][b]Persistence + idempotence:[/b] remembers progress per `occurranceKey` across reloads.
+description=[*][b]Deterministic policy:[/b] chance is deterministic per key (no re-rolls), cooldown is per promise.
+description=[*][b]It’s reactive:[/b] PromiseKeeper doesn’t poll or scan. It runs as soon as your situation source emits, for events that means in the same tick the event has been emitted.
+description=[*][b]Debuggable:[/b] Broken promises keep a reason via `whyNot`.
+description=[*][b]Light on world logic:[/b] PromiseKeeper does not probe/scan; it only runs actions when situations arrive.
+description=[*][b]Plays well with WorldObserver:[/b] treat WO situations as already actionable (subject = the full observation).
+description=[/list]
+description=
+description=[h2]Dependencies (required by mod.info)[/h2]
+description=[list]
+description=[*]StarlitLibrary
+description=[*]DoggyLibrary
+description=[*]DREAMBase
+description=[/list]
+description=
+description=[h2]Forking[/h2]
+description=Modifications to this mod are welcome. Ideally as a PR on GitHub. You may publish your own version on the Steam Workshop under the condition that you give credit, clearly label the modded version and refer to the original. If in doubt get in touch via a GitHub issue.
 tags=Framework;Build 42;
 visibility=Public

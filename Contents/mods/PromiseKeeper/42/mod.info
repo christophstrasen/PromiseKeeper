@@ -1,9 +1,11 @@
 name=[42SP] PromiseKeeper
 id=PromiseKeeper
 description=tbd
-versionMin=42.0
+versionMin=42.13
 poster=poster.png
 icon=icon_64.png
+author=Karmachameleon
 authors=Karmachameleon
-version=0.1.1
+url=https://github.com/christophstrasen/PromiseKeeper
+modversion=0.1.1
 require=\StarlitLibrary,\DoggyLibrary,\DREAMBase
