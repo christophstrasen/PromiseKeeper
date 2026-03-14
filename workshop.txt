@@ -1,6 +1,6 @@
 version=1
 id=3637573743
-title=[42SP] PromiseKeeper - A stateful situation-to-action orchestrator.
+title=[42SP] PromiseKeeper
 description=[h1]PromiseKeeper[/h1]
 description=
 description=[i]A stateful situation-to-action orchestration library for [b]Project Zomboid (Build 42)[/b][/i] - part of the [url=https://github.com/christophstrasen/DREAM]DREAM[/url] family.
